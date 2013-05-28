@@ -1,86 +1,105 @@
-import inspect
-import dis
-import operator
 import sys
 
-function = type(lambda : None) # function(code, globals[, name[, argdefs[, closure]]])
-code = type((lambda : None).func_code) # code(argcount, nlocals, stacksize, flags, codestring, constants, names,
-                                       #      varnames, filename, name, firstlineno, lnotab[, freevars[, cellvars]])
+from decorator import FunctionMaker
+def decorator_apply(dec, func):
+    """
+    Decorate a function by preserving the signature even if dec
+    is not a signature-preserving decorator.
+    """
+    return FunctionMaker.create(
+        func, 'return decorated(%(signature)s)',
+        dict(decorated=dec(func)), __wrapped__=func)
 
+from byteplay import *
+hasfunc = set([CALL_FUNCTION, CALL_FUNCTION_VAR, CALL_FUNCTION_KW, CALL_FUNCTION_VAR_KW])
 
-class TailRecursionException(Exception):
-    def __init__(self, args, kwargs):
-        self.args = args
-        self.kwargs = kwargs
+class TailRecursive(object):
+    """
+    tail_recursive decorator based on Kay Schluehr's recipe
+    http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/496691
+    with improvements by Michele Simionato and George Sakkis.
+    """
 
-def opname(op):
-    if isinstance(op,str) and len(op) == 1:
-        op = ord(op)
-    assert isinstance(op, int)
-    return dis.opname[op]
+    def __init__(self, func):
+        self.func = func
+        self.firstcall = True
+        self.CONTINUE = object() # sentinel
 
-def has_arg(op):
-    return op >= dis.HAVE_ARGUMENT
-
-def group_args(bytecodes):
-    retval = list()
-    bytecodes = map(lambda x: x if isinstance(x, int) else ord(x), bytecodes)
-    i = 0
-    args = list()
-    index = None
-    while i < len(bytecodes):
-        op = bytecodes[i]
-        if has_arg(op):
-            args = [bytecodes[i+1], bytecodes[i+2]] + args
-            i += 3
-            if op != dis.EXTENDED_ARG:
-                first_op_index = i - len(args)/2*3
-                arg_num = reduce(operator.add, map(lambda (i, n): n << (8*i), enumerate(args)))
-                args = list()
-            else:
-                continue
-        else:
-            first_op_index = i
-            arg_num = None
-            i += 1
-        retval.append((first_op_index, opname(op), arg_num))
-    return retval
-
-def tailcall_optimized(only_tail_calls=False):
+    def __call__(self, *args, **kwd):
+        CONTINUE = self.CONTINUE
+        if self.firstcall:
+            func = self.func
+            self.firstcall = False
+            try:
+                while True:
+                    result = func(*args, **kwd)
+                    if result is CONTINUE: # update arguments
+                        args, kwd = self.argskwd
+                    else: # last call
+                        return result
+            finally:
+                self.firstcall = True
+        else: # return the arguments of the tail call
+            self.argskwd = args, kwd
+            return CONTINUE
+        
+def tailcall_optimized(only_tail_calls=False, safe=False):
+    if sys.version[:5] != "2.7.5":
+        import warnings
+        warnings.warn("tailcall_optimized was written for python 2.7.5. Behavior may not be correct for other versions")
     def decorator(f):
         assert inspect.isfunction(f)
-        instructions = group_args(f.func_code.co_code)
+        c = Code.from_code(f.func_code)
         potential_tail_calls = list()
         last_instruction = None
-        for (i, (index, instruction, arg)) in enumerate(instructions):
-            if last_instruction == 'CALL_FUNCTION' \
-               and instruction == 'RETURN_VALUE':
-                potential_tail_calls.append(i)
+        for (i, (instruction, arg)) in enumerate(c.code):
+            if last_instruction in hasfunc \
+               and instruction == RETURN_VALUE:
+                potential_tail_calls.append(i - 1)
+            last_instruction = instruction
+            
+        del instruction
+        del last_instruction
 
+        print potential_tail_calls
 
-        raise NotImplementedError
+        if safe:
+            raise NotImplementedError
+        else:
+            tail_calls = list()
+            for tail_call_index in potential_tail_calls:
+                (call_opcode, call_args) = c.code[tail_call_index]
+                func_args_counter = getse(call_opcode, call_args)[0] - 1
+                for i in xrange(tail_call_index-1, -1, -1):
+                    (pops, pushes) = getse(*c.code[i])
+                    func_args_counter += pops - pushes
+                    if func_args_counter < 0:
+                        raise ValueError("Misaligned function call opcode")
+                    elif func_args_counter == 0:
+                        func_index = i-1
+                        break
+
+                if (c.code[func_index] == (LOAD_ATTR, f.func_name) # recursive method call
+                     and c.code[func_index-1] == (LOAD_FAST, 'self')) \
+                     or c.code[func_index] == (LOAD_GLOBAL, f.func_name): # ordinary recursion
+                    print "Found recursion from %s to %s" % (func_index, tail_call_index)
+                    raise NotImplementedError
+                    if call_opcode == CALL_FUNCTION:
+                        raise NotImplementedError
+                    elif call_opcode == CALL_FUNCTION_VAR:
+                        raise NotImplementedError
+                    elif call_opcode == CALL_FUNCTION_KW:
+                        raise NotImplementedError
+                    elif call_opcode == CALL_FUNCTION_VAR_KW:
+                        raise NotImplementedError
+                    else:
+                        raise ValueError("Unexpected opcode",call_opcode)
+        
+
+        
 
         if only_tail_calls:
-            def decorated_inner(*args, **kwargs):
-                frame = sys._getframe()
-                if frame.f_back and frame.f_back.f_back \
-                       and frame.f_code == frame.f_back.f_back.f_code:
-                    raise TailRecursionException(args, kwargs)
-                else:
-                    while True:
-                        try:
-                            return f(*args, **kwargs)
-                        except TailRecursionException as e:
-                            args = e.args
-                            kwargs = e.kwargs
-
-            # ensure that we preserve the function signature for inspection
-            decorated_argspec = inspect.formatargspec(*inspect.getargspec(f))
-            decorated_code = compile("def decorated%s:\n    return decorated_inner%s\n" % (decorated_argspec, decorated_argspec),
-                                     __file__, "exec")
-            decorated = function(decorated_code, {'decorated_inner':decorated_inner}, f.func_name)
-            decorated.__doc__ = f.__doc__
-            return decorated
+            return decorator_apply(TailRecursive, f)
         else:
             raise NotImplementedError
         
