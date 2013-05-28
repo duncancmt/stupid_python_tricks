@@ -103,12 +103,15 @@ def hasattr_static(obj, name):
     except AttributeError:
         return False
 
+def isdescriptor(obj):
+    return ( hasattr_static(obj, '__get__') or \
+             hasattr_static(obj, '__set__') or \
+             hasattr_static(obj, '__delete__') )
+
 def checkdescriptor(obj, name):
     """returns the descriptor if name is a descriptor in obj, otherwise raises AttributeError"""
     desc = getattr_static(obj, name)
-    if hasattr_static(desc, '__get__') or \
-       hasattr_static(desc, '__set__') or \
-       hasattr_static(desc, '__delete__'):
+    if isdescriptor(desc):
         return desc
     else:
         raise AttributeError
@@ -364,6 +367,7 @@ class DescriptorProxy(BasicProxy):
                 if instance is None:
                     return self._obj.__get__(None, owner._class)
                 else:
+                    # WHY RECURSION?????????
                     #instance_obj = instance._obj
                     instance_obj = getattr_static(instance,'_obj')
                     return self._obj.__get__(instance_obj, owner._class)
@@ -422,11 +426,14 @@ class Proxy(BasicProxy):
                    or name in namespace:
                 continue
             attr = getattr_static(theclass, name)
-            if not ( inspect.isgetsetdescriptor(attr) \
-                     or inspect.ismemberdescriptor(attr) \
-                     or inspect.isbuiltin(attr) ):
+            
+            # it seems dumb that we have to special case these kinds of attributes...
+            if isdescriptor(attr) \
+               and not ( inspect.isgetsetdescriptor(attr) \
+                         or inspect.ismemberdescriptor(attr) \
+                         or inspect.isbuiltin(attr) ):
                 try:
-                    namespace[name] = cls._descriptor_proxy_class(checkdescriptor(theclass, name), name)
+                    namespace[name] = cls._descriptor_proxy_class(attr, name)
                 except AttributeError:
                     continue
 
