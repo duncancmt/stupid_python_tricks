@@ -8,14 +8,20 @@ hasfunc = set([CALL_FUNCTION, CALL_FUNCTION_VAR, CALL_FUNCTION_KW, CALL_FUNCTION
 hasexit = set([BREAK_LOOP, CONTINUE_LOOP, RETURN_VALUE, JUMP_FORWARD, POP_JUMP_IF_TRUE, POP_JUMP_IF_FALSE, JUMP_IF_TRUE_OR_POP, JUMP_IF_FALSE_OR_POP, JUMP_ABSOLUTE, FOR_ITER, RAISE_VARARGS])
 hasblock = set([SETUP_WITH, SETUP_LOOP, SETUP_EXCEPT, SETUP_FINALLY])
 hasendblock = set([POP_BLOCK, END_FINALLY, WITH_CLEANUP])
-# YIELD_VALUE
+# YIELD_VALUE isn't really a nonlocal exit, although it does break the dataflow tree
 
 class DataFlowNode(object):
     def __init__(self, op, args, dependencies=(), lineno=None):
+        """
+        op -> an instance of byeplay.Opcode, the opcode for this node of the tree
+        args -> the argument to op, can be anything that byteplay will understand
+        dependencies -> a list of (DataFlowNode, int) tuples, the DataFlowNode is bytecode that produced the stack item that this consumed, the int is which of the outputs from the DataFlowNode we consumed
+        lineno -> optional, the line number of this opcode
+        """
         assert getse(op, args)[0] == len(dependencies), "Wrong number of argument to opcode"
         assert isinstance(op, Opcode)
-        assert isinstance(args, (int, long))
-        assert all(map(lambda x: isinstance(x, DataFlowNode), dependencies))
+        # args can be anything
+        assert all(map(lambda (x,y): isinstance(x, DataFlowNode) and isinstance(y, (int, long)), dependencies))
         assert isinstance(lineno, (int, long, NoneType))
         self.op = op
         self.args = args
@@ -23,52 +29,31 @@ class DataFlowNode(object):
         self.lineno = lineno
 
 class ControlFlowNode(object):
-    def __init__(self, dataflow, exits=(), blockstack=list()):
+    def __init__(self, dataflow, blockstack=list()):
         assert isinstance(dataflow, DataFlowNode)
-        assert all(map(lambda x: isinstance(x, (Label, NoneType)), exits))
-        assert isinstance(exits, set)
         # TODO: blockstack type
         self.dataflow = dataflow
-        self.exits = exits
         self.blockstack = blockstack
 
 class BlockInfo(object):
-    def __init__(self, block_type, lineno, start_label, end_label):
+    def __init__(self, block_type, start_label, end_label):
         assert block_type in ["LOOP", "EXCEPT", "FINALLY", "FUNCTION"]
-        assert isinstance(lineno, (int, long))
+        assert isinstance(start_label, Label)
+        assert isinstance(end_label, Label)
         self.block_type = block_type
-        self.lineno = lineno
-        
-
-def traverse_finally(block_type, blockstack, label_to_controlflow):
-    # TODO: some finally blocks have a fixed exit point that overrides the normal exit
-    immediate_exit = None
-    for block in blockstack+[None]:
-        if block is None:
-            raise ValueError("Ran out of blocks before finding the exit point")
-        elif block.block_type == "FINALLY":
-            if immediate_exit is None:
-                immediate_exit = exit = block.label
-            else:
-                label_to_controlflow[exit].exits.add(block.label)
-                exit = block.label
-        elif block.block_type == block_type:
-            if immediate_exit is None:
-                immediate_exit = block.label
-            else:
-                label_to_controlflow[exit].exits.add(block.label)
-            break
-    return immediate_exit
+        self.start_label = start_label
+        self.end_label = end_label
 
 def parse(code_obj):
     assert isinstance(code_obj, Code)
     code_list = code_obj.code
-
+    
     label_to_controlflow = dict()
+    exits = dict()
     # control flow trees point in the direction of execution
     # data flow trees point in the direction opposite execution
     def parse_controlflow(start_index, label, blockstack):
-        # TODO: create root ControlFLowNode
+        # TODO: create root ControlFlowNode
         # TODO: add labels to all block begins/ends
         for (i, (op, arg)) in imap(lambda i: (i, code_list[i]), xrange(start_index, len(code_list))):
             if op in hasexit \
@@ -78,15 +63,37 @@ def parse(code_obj):
                 
             if op in hasexit:
                 if op == BREAK_LOOP:
-                    exit = traverse_finally("LOOP", blockstack, label_to_controlflow)
+                    for block in blockstack+[None]:
+                        if block is None:
+                            raise ValueError("Ran out of blocks before finding loop exit")
+                        elif block.type == "LOOP" or block.type == "FINALLY":
+                            exit = block.end_label
+                            break
                     retval = ControlFlowNode(dataflow, set([exit]), blockstack[:])
+                    exits[label] = (exit,)
                     return retval
                 elif op == CONTINUE_LOOP:
-                    # TODO: link finally blocks
-                    retval = ControlFlowNode(dataflow, set([arg]), blockstack[:]) 
+                    # continue loop is *only* emitted if an active block needs to be triggered
+                    for block in blockstack+[None]:
+                        if block is None:
+                            raise ValueError("Ran out of blocks before finding loop beginning")
+                        elif block.type == "LOOP":
+                            exit = block.start_label
+                            break
+                        elif block.type == "FINALLY":
+                            exit = block.end_label
+                            break
+                    # we ignore arg because it's possible that we're targeting a FINALLY block
+                    retval = ControlFlowNode(dataflow, set([exit]), blockstack[:])
+                    exits[label] = (exit,)
                     return retval
                 elif op == RETURN_VALUE:
-                    exit = traverse_finally("FUNCTION", blockstack, label_to_controlflow)
+                    for block in blockstack+[None]:
+                        if block is None:
+                            raise ValueError("Ran out of blocks before finding function beginning")
+                        elif block.type == "FUNCTION" or block.type == "FINALLY":
+                            exit = block.end_label
+                    exits[label] = (exit,)
                     retval = ControlFlowNode(dataflow, set([exit]), blockstack[:])
                     return retval
                 elif op == JUMP_FORWARD:
@@ -109,12 +116,14 @@ def parse(code_obj):
                     raise ValueError("Unrecognized exit opcode")
             elif op in hasblock:
                 if op == SETUP_WITH:
+                    # see SETUP_FINALLY
                     pass
                 elif op == SETUP_LOOP:
                     pass
                 elif op == SETUP_EXCEPT:
                     pass
                 elif op == SETUP_FINALLY:
+                    # targets should be, top of function, containing block, containing loop, and corresponding END_FINALLY
                     pass
                 else:
                     raise ValueError("Unrecognized block starting opcode")
@@ -122,14 +131,15 @@ def parse(code_obj):
                 if op == POP_BLOCK:
                     pass
                 elif op == END_FINALLY:
+                    # see SETUP_FINALLY
                     pass
                 elif op == WITH_CLEANUP:
+                    # see WITH_CLEANUP
                     pass
                 else:
                     raise ValueError("Unrecognized block ending opcode")
             else:
                 continue
-        for 
     
     def parse_dataflow(start_index):
         pass
