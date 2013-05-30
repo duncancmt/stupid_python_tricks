@@ -54,6 +54,7 @@ def find_offset(code_list, label):
 
 def parse(code_obj):
     assert isinstance(code_obj, Code)
+    # TODO: add labels to all block begins/ends (and only to block begins/ends)
     code_list = code_obj.code
     
     label_to_controlflow = dict()
@@ -62,12 +63,11 @@ def parse(code_obj):
     # data flow trees point in the direction opposite execution
     def parse_controlflow(start_index, label, blockstack):
         # TODO: create root ControlFlowNode
-        # TODO: add labels to all block begins/ends
         for (i, (op, arg)) in imap(lambda i: (i, code_list[i]), xrange(start_index, len(code_list))):
             if op in hasexit \
                or op in hasblock \
                or op in hasendblock:
-                dataflow = parse_dataflow(i)
+                dataflow = parse_dataflow(i, start_index)
                 label_to_controlflow[label] = ControlFlowNode(dataflow, blockstack[:])
             if op in hasexit:
                 if op == BREAK_LOOP:
@@ -101,8 +101,10 @@ def parse(code_obj):
 
                 # For all explicitly targeted jumps, we don't verify that the target is valid
                 # because we won't be able to serialize invalid targets anyway
+                # (an invalid target is one that isn't in the same block scope)
                 elif op == JUMP_FORWARD or op == JUMP_ABSOLUTE:
                     # unconditional jumps have only one exit
+                    assert isinstance(arg, Label)
                     exits[label] = (arg,)
                     if arg not in exits:
                         parse_controlflow(find_offset(code_list, arg), arg, blockstack[:])
@@ -111,6 +113,7 @@ def parse(code_obj):
                 elif op == POP_JUMP_IF_TRUE or op == POP_JUMP_IF_FALSE \
                      or op == JUMP_IF_TRUE_OR_POP or op == JUMP_IF_FALSE_OR_POP \
                      or op == FOR_ITER:
+                    assert isinstance(arg, Label)
                     next = code_list[i+1][1]
                     assert isinstance(next, Label)
                     exits[label] = (arg,next)
@@ -128,26 +131,30 @@ def parse(code_obj):
                 else:
                     raise ValueError("Unrecognized exit opcode")
             elif op in hasblock:
+                assert isinstance(arg, Label)
                 if op == SETUP_WITH:
-                    # see SETUP_FINALLY
-                    pass
+                    blockinfo = BlockInfo("FINALLY", label, arg)
                 elif op == SETUP_LOOP:
-                    pass
+                    blockinfo = BlockInfo("LOOP", label, arg)
                 elif op == SETUP_EXCEPT:
-                    pass
+                    blockinfo = BlockInfo("EXCEPT", label, arg)
                 elif op == SETUP_FINALLY:
-                    # targets should be, top of function, containing block, containing loop, and corresponding END_FINALLY
-                    pass
+                    blockinfo = BlockInfo("FINALLY", label, arg)
                 else:
                     raise ValueError("Unrecognized block starting opcode")
+                exit = code_list[i+1][1]
+                assert isinstance(exit, Label)
+                exits[label] = (exit,)
+                assert exit not in exits
+                parse_controlflow(i+1, exit, blockstack+[blockinfo])
             elif op in hasendblock:
                 if op == POP_BLOCK:
                     pass
                 elif op == END_FINALLY:
-                    # see SETUP_FINALLY
+                    # targets should be, top of function, containing block, containing loop, and corresponding END_FINALLY
                     pass
                 elif op == WITH_CLEANUP:
-                    # see WITH_CLEANUP
+                    # see END_FINALLY
                     pass
                 else:
                     raise ValueError("Unrecognized block ending opcode")
@@ -155,8 +162,9 @@ def parse(code_obj):
                 continue
         assert all(map(lambda x: x in exits, exits[label])), "Unresolved exit"
     
-    def parse_dataflow(start_index):
-        pass
+    def parse_dataflow(start_index, end_index):
+        for i in (i, (op, arg)) in imap(lambda i: (i, code_list[i]), xrange(start_index, end_index-1, -1)):
+            pass
 
     
     
