@@ -66,6 +66,7 @@ def parse(code_obj):
         #          These are not expressed in the control flow graph, only explicit transfers of control are.
         #          The exception to this rule is FINALLY blocks. These always have edges to all possible exits.
         # TODO: create root ControlFlowNode
+        # TODO: appropriately skip over labels when recursing
         for (i, (op, arg)) in imap(lambda i: (i, code_list[i]), xrange(start_index, len(code_list))):
             if op in hasexit \
                or op in hasblock \
@@ -155,7 +156,7 @@ def parse(code_obj):
                     exit = code_list[i+1][0]
                     assert isinstance(exit, Label)
                     exits[label] = (exit,)
-                    if exit in exits:
+                    if exit not in exits:
                         parse_controlflow(i+1, exit, blockstack[:-1])
                 elif op == END_FINALLY:
                     # targets should be, bottom of function, containing block's target, containing loop (top and bottom), and falling off the end
@@ -165,11 +166,32 @@ def parse(code_obj):
                     pass
                 else:
                     raise ValueError("Unrecognized block ending opcode")
+            elif isinstance(op, Label):
+                exits[label] = (op,)
+                if exit not in exits:
+                    parse_controlflow(i+1, op, blockstack[:])
             else:
                 continue
         assert all(map(lambda x: x in exits, exits[label])), "Unresolved exit"
     
-    def parse_dataflow(start_index, end_index):
+    def parse_dataflow(exit_index, enter_index):
+        def inner(start_index):
+            (op, arg) = code_list[start_index]
+            # TODO: line numbers
+            # TODO: base condition
+            (pops, pushes) = getse(op, arg)
+            dependencies = [None]*pops
+            dependency_index = 0
+            while dependency_index < pops:
+                for (start_index, dependency) in inner(start_index):
+                    # TODO: handle stop condition (enter_index)
+                    dependencies[dependency_index] = dependency
+                    dependency_index += 1
+            dependencies = tuple(dependencies)
+            node = DataFlowNode(op, arg, dependencies, lineno=None) # TODO: lineno
+            for i in xrange(pushes):
+                yield (start_index, (node, i))
+
         for i in (i, (op, arg)) in imap(lambda i: (i, code_list[i]), xrange(start_index, end_index-1, -1)):
             pass
 
