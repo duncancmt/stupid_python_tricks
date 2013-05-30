@@ -62,6 +62,9 @@ def parse(code_obj):
     # control flow trees point in the direction of execution
     # data flow trees point in the direction opposite execution
     def parse_controlflow(start_index, label, blockstack):
+        # WARNING: there are always implicit exits from any ControlFlowNode, namely those that raise exceptions.
+        #          These are not expressed in the control flow graph, only explicit transfers of control are.
+        #          The exception to this rule is FINALLY blocks. These always have edges to all possible exits.
         # TODO: create root ControlFlowNode
         for (i, (op, arg)) in imap(lambda i: (i, code_list[i]), xrange(start_index, len(code_list))):
             if op in hasexit \
@@ -114,7 +117,7 @@ def parse(code_obj):
                      or op == JUMP_IF_TRUE_OR_POP or op == JUMP_IF_FALSE_OR_POP \
                      or op == FOR_ITER:
                     assert isinstance(arg, Label)
-                    next = code_list[i+1][1]
+                    next = code_list[i+1][0]
                     assert isinstance(next, Label)
                     exits[label] = (arg,next)
                     if arg not in exits:
@@ -142,16 +145,20 @@ def parse(code_obj):
                     blockinfo = BlockInfo("FINALLY", label, arg)
                 else:
                     raise ValueError("Unrecognized block starting opcode")
-                exit = code_list[i+1][1]
+                exit = code_list[i+1][0]
                 assert isinstance(exit, Label)
                 exits[label] = (exit,)
                 assert exit not in exits
                 parse_controlflow(i+1, exit, blockstack+[blockinfo])
             elif op in hasendblock:
                 if op == POP_BLOCK:
-                    pass
+                    exit = code_list[i+1][0]
+                    assert isinstance(exit, Label)
+                    exits[label] = (exit,)
+                    if exit in exits:
+                        parse_controlflow(i+1, exit, blockstack[:-1])
                 elif op == END_FINALLY:
-                    # targets should be, top of function, containing block, containing loop, and corresponding END_FINALLY
+                    # targets should be, bottom of function, containing block's target, containing loop (top and bottom), and falling off the end
                     pass
                 elif op == WITH_CLEANUP:
                     # see END_FINALLY
