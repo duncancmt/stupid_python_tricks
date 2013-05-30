@@ -1,50 +1,145 @@
 import sys
 import warnings
-
-from decorator import FunctionMaker
-def decorator_apply(dec, func):
-    """
-    Decorate a function by preserving the signature even if dec
-    is not a signature-preserving decorator.
-    """
-    return FunctionMaker.create(
-        func, 'return decorated(%(signature)s)',
-        dict(decorated=dec(func)), __wrapped__=func)
+from itertools import imap
+from types import NoneType
 
 from byteplay import *
 hasfunc = set([CALL_FUNCTION, CALL_FUNCTION_VAR, CALL_FUNCTION_KW, CALL_FUNCTION_VAR_KW])
+hasexit = set([BREAK_LOOP, CONTINUE_LOOP, RETURN_VALUE, JUMP_FORWARD, POP_JUMP_IF_TRUE, POP_JUMP_IF_FALSE, JUMP_IF_TRUE_OR_POP, JUMP_IF_FALSE_OR_POP, JUMP_ABSOLUTE, FOR_ITER, RAISE_VARARGS])
+hasblock = set([SETUP_WITH, SETUP_LOOP, SETUP_EXCEPT, SETUP_FINALLY])
+hasendblock = set([POP_BLOCK, END_FINALLY, WITH_CLEANUP])
+# YIELD_VALUE
 
-class TailRecursive(object):
-    """
-    tail_recursive decorator based on Kay Schluehr's recipe
-    http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/496691
-    with improvements by Michele Simionato and George Sakkis.
-    """
+class DataFlowNode(object):
+    def __init__(self, op, args, dependencies=(), lineno=None):
+        assert getse(op, args)[0] == len(dependencies), "Wrong number of argument to opcode"
+        assert isinstance(op, Opcode)
+        assert isinstance(args, (int, long))
+        assert all(map(lambda x: isinstance(x, DataFlowNode), dependencies))
+        assert isinstance(lineno, (int, long, NoneType))
+        self.op = op
+        self.args = args
+        self.dependencies = dependencies
+        self.lineno = lineno
 
-    def __init__(self, func):
-        self.func = func
-        self.firstcall = True
-        self.CONTINUE = object() # sentinel
+class ControlFlowNode(object):
+    def __init__(self, dataflow, exits=(), blockstack=list()):
+        assert isinstance(dataflow, DataFlowNode)
+        assert all(map(lambda x: isinstance(x, (Label, NoneType)), exits))
+        assert isinstance(exits, set)
+        # TODO: blockstack type
+        self.dataflow = dataflow
+        self.exits = exits
+        self.blockstack = blockstack
 
-    def __call__(self, *args, **kwd):
-        CONTINUE = self.CONTINUE
-        if self.firstcall:
-            func = self.func
-            self.firstcall = False
-            try:
-                while True:
-                    result = func(*args, **kwd)
-                    if result is CONTINUE: # update arguments
-                        args, kwd = self.argskwd
-                    else: # last call
-                        return result
-            finally:
-                self.firstcall = True
-        else: # return the arguments of the tail call
-            self.argskwd = args, kwd
-            return CONTINUE
+class BlockInfo(object):
+    def __init__(self, block_type, lineno, start_label, end_label):
+        assert block_type in ["LOOP", "EXCEPT", "FINALLY", "FUNCTION"]
+        assert isinstance(lineno, (int, long))
+        self.block_type = block_type
+        self.lineno = lineno
         
-def tailcall_optimized(only_tail_calls=False, safe=False):
+
+def traverse_finally(block_type, blockstack, label_to_controlflow):
+    # TODO: some finally blocks have a fixed exit point that overrides the normal exit
+    immediate_exit = None
+    for block in blockstack+[None]:
+        if block is None:
+            raise ValueError("Ran out of blocks before finding the exit point")
+        elif block.block_type == "FINALLY":
+            if immediate_exit is None:
+                immediate_exit = exit = block.label
+            else:
+                label_to_controlflow[exit].exits.add(block.label)
+                exit = block.label
+        elif block.block_type == block_type:
+            if immediate_exit is None:
+                immediate_exit = block.label
+            else:
+                label_to_controlflow[exit].exits.add(block.label)
+            break
+    return immediate_exit
+
+def parse(code_obj):
+    assert isinstance(code_obj, Code)
+    code_list = code_obj.code
+
+    label_to_controlflow = dict()
+    # control flow trees point in the direction of execution
+    # data flow trees point in the direction opposite execution
+    def parse_controlflow(start_index, label, blockstack):
+        # TODO: create root ControlFLowNode
+        # TODO: add labels to all block begins/ends
+        for (i, (op, arg)) in imap(lambda i: (i, code_list[i]), xrange(start_index, len(code_list))):
+            if op in hasexit \
+               or op in hasblock \
+               or op in hasendblock:
+                dataflow = parse_dataflow(i)
+                
+            if op in hasexit:
+                if op == BREAK_LOOP:
+                    exit = traverse_finally("LOOP", blockstack, label_to_controlflow)
+                    retval = ControlFlowNode(dataflow, set([exit]), blockstack[:])
+                    return retval
+                elif op == CONTINUE_LOOP:
+                    # TODO: link finally blocks
+                    retval = ControlFlowNode(dataflow, set([arg]), blockstack[:]) 
+                    return retval
+                elif op == RETURN_VALUE:
+                    exit = traverse_finally("FUNCTION", blockstack, label_to_controlflow)
+                    retval = ControlFlowNode(dataflow, set([exit]), blockstack[:])
+                    return retval
+                elif op == JUMP_FORWARD:
+                    pass
+                elif op == POP_JUMP_IF_TRUE:
+                    pass
+                elif op == POP_JUMP_IF_FALSE:
+                    pass
+                elif op == JUMP_IF_TRUE_OR_POP:
+                    pass
+                elif op == JUMP_IF_FALSE_OR_POP:
+                    pass
+                elif op == JUMP_ABSOLUTE:
+                    pass
+                elif op == FOR_ITER:
+                    pass
+                elif op == RAISE_VARARGS:
+                    pass
+                else:
+                    raise ValueError("Unrecognized exit opcode")
+            elif op in hasblock:
+                if op == SETUP_WITH:
+                    pass
+                elif op == SETUP_LOOP:
+                    pass
+                elif op == SETUP_EXCEPT:
+                    pass
+                elif op == SETUP_FINALLY:
+                    pass
+                else:
+                    raise ValueError("Unrecognized block starting opcode")
+            elif op in hasendblock:
+                if op == POP_BLOCK:
+                    pass
+                elif op == END_FINALLY:
+                    pass
+                elif op == WITH_CLEANUP:
+                    pass
+                else:
+                    raise ValueError("Unrecognized block ending opcode")
+            else:
+                continue
+        for 
+    
+    def parse_dataflow(start_index):
+        pass
+
+    
+    
+    
+    
+            
+def tailcall_optimized(safe=False):
     # This probably can't handle functions with >255 arguments
     if sys.version[:5] != "2.7.5":
         warnings.warn("tailcall_optimized was written for python 2.7.5. Behavior may not be correct for other versions")
@@ -71,7 +166,7 @@ def tailcall_optimized(only_tail_calls=False, safe=False):
         tail_calls = list()
         for tail_call_index in potential_tail_calls:
             (call_opcode, call_args) = c.code[tail_call_index]
-            func_args_counter = getse(call_opcode, call_args)[0] - 1
+            func_args = [None] * (getse(call_opcode, call_args)[0] - 1)
             for i in xrange(tail_call_index-1, -1, -1):
                 (pops, pushes) = getse(*c.code[i])
                 func_args_counter += pops - pushes
@@ -84,7 +179,7 @@ def tailcall_optimized(only_tail_calls=False, safe=False):
                 and c.code[func_index-1] == (LOAD_FAST, 'self')) \
                 or c.code[func_index] == (LOAD_GLOBAL, f.func_name): # ordinary recursion
                 print "Found recursion from %s to %s" % (func_index, tail_call_index)
-                tail_calls.append(tail_call_index)
+                tail_calls.append((tail_call_index, func_index))
             else:
                 print "Non-recursive tail call"
             # cleanup
@@ -103,7 +198,7 @@ def tailcall_optimized(only_tail_calls=False, safe=False):
         # Generate replacement bytecode
         # Yeah, this is duplicated code, but doing things in stages makes
         # the separation of concerns better
-        for tail_call_index in potential_tail_calls:
+        for tail_call_index, func_index in potential_tail_calls:
             (call_opcode, call_args) = c.code[tail_call_index]
             num_pos_args = call_args & 0xFF
             num_key_args = (call_args >> 8) & 0xFF
@@ -123,6 +218,7 @@ def tailcall_optimized(only_tail_calls=False, safe=False):
                 raise ValueError("Unexpected opcode",call_opcode)
 
             if safe:
+                
                 raise NotImplementedError
             else:
                 raise NotImplementedError
@@ -130,9 +226,6 @@ def tailcall_optimized(only_tail_calls=False, safe=False):
 
         
 
-        if only_tail_calls:
-            return decorator_apply(TailRecursive, f)
-        else:
-            return f
+        return f
         
     return decorator
