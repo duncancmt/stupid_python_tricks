@@ -78,7 +78,6 @@ def parse(code_obj):
                             exit = block.end_label
                             break
                     exits[label] = (exit,)
-                    assert exit in exits
                 elif op == CONTINUE_LOOP:
                     # continue loop is *only* emitted if an active block needs to be triggered
                     for block in blockstack+[None]:
@@ -92,7 +91,6 @@ def parse(code_obj):
                             break
                     # we ignore arg because it's possible that we're targeting a FINALLY block
                     exits[label] = (exit,)
-                    assert exit in exits
                 elif op == RETURN_VALUE:
                     for block in blockstack+[None]:
                         if block is None:
@@ -100,7 +98,6 @@ def parse(code_obj):
                         elif block.type == "FUNCTION" or block.type == "FINALLY":
                             exit = block.end_label
                     exits[label] = (exit,)
-                    assert exit in exits
 
                 # For all explicitly targeted jumps, we don't verify that the target is valid
                 # because we won't be able to serialize invalid targets anyway
@@ -122,7 +119,12 @@ def parse(code_obj):
                     if next not in exits:
                         parse_controlflow(find_offset(code_list, next), next, blockstack[:])
                 elif op == RAISE_VARARGS:
-                    pass
+                    for block in blockstack+[None]:
+                        if block is None:
+                            raise ValueError("Ran out of blocks before finding an exception handler or function beginning")
+                        elif block.type in ["EXCEPT", "FINALLY", "FUNCTION"]:
+                            exit = block.end_label
+                    exits[label] = (exit,)
                 else:
                     raise ValueError("Unrecognized exit opcode")
             elif op in hasblock:
@@ -151,6 +153,7 @@ def parse(code_obj):
                     raise ValueError("Unrecognized block ending opcode")
             else:
                 continue
+        assert all(map(lambda x: x in exits, exits[label])), "Unresolved exit"
     
     def parse_dataflow(start_index):
         pass
