@@ -5,7 +5,9 @@ from types import NoneType
 
 from byteplay import *
 hasfunc = set([CALL_FUNCTION, CALL_FUNCTION_VAR, CALL_FUNCTION_KW, CALL_FUNCTION_VAR_KW])
-hasexit = set([BREAK_LOOP, CONTINUE_LOOP, RETURN_VALUE, JUMP_FORWARD, POP_JUMP_IF_TRUE, POP_JUMP_IF_FALSE, JUMP_IF_TRUE_OR_POP, JUMP_IF_FALSE_OR_POP, JUMP_ABSOLUTE, FOR_ITER, RAISE_VARARGS])
+
+# These are subtly different from byteplay.hasflow. hasflow includes STOP_CODE (which is ignored by the interpreter) and excludes RAISE_VARARGS (which most definitely effects the control flow).
+hasexit = set([BREAK_LOOP, CONTINUE_LOOP, RETURN_VALUE, JUMP_FORWARD, JUMP_ABSOLUTE, POP_JUMP_IF_TRUE, POP_JUMP_IF_FALSE, JUMP_IF_TRUE_OR_POP, JUMP_IF_FALSE_OR_POP, FOR_ITER, RAISE_VARARGS])
 hasblock = set([SETUP_WITH, SETUP_LOOP, SETUP_EXCEPT, SETUP_FINALLY])
 hasendblock = set([POP_BLOCK, END_FINALLY, WITH_CLEANUP])
 # YIELD_VALUE isn't really a nonlocal exit, although it does break the dataflow tree
@@ -15,7 +17,7 @@ class DataFlowNode(object):
         """
         op -> an instance of byeplay.Opcode, the opcode for this node of the tree
         args -> the argument to op, can be anything that byteplay will understand
-        dependencies -> a list of (DataFlowNode, int) tuples, the DataFlowNode is bytecode that produced the stack item that this consumed, the int is which of the outputs from the DataFlowNode we consumed
+        dependencies -> a list of (DataFlowNode, int) tuples, the DataFlowNode is bytecode that produced the stack item that this consumed, the int is which of the outputs from the DataFlowNode we consumed (a negative value indicates that this node consumes no outputs)
         lineno -> optional, the line number of this opcode
         """
         assert getse(op, args)[0] == len(dependencies), "Wrong number of argument to opcode"
@@ -44,6 +46,12 @@ class BlockInfo(object):
         self.start_label = start_label
         self.end_label = end_label
 
+def find_offset(code_list, label):
+    for (i, (op, arg)) in enumerate(code_list):
+        if op == label:
+            return i
+    raise AttributeError("Label not found")
+
 def parse(code_obj):
     assert isinstance(code_obj, Code)
     code_list = code_obj.code
@@ -60,7 +68,7 @@ def parse(code_obj):
                or op in hasblock \
                or op in hasendblock:
                 dataflow = parse_dataflow(i)
-                
+                label_to_controlflow[label] = ControlFlowNode(dataflow, blockstack[:])
             if op in hasexit:
                 if op == BREAK_LOOP:
                     for block in blockstack+[None]:
@@ -69,9 +77,8 @@ def parse(code_obj):
                         elif block.type == "LOOP" or block.type == "FINALLY":
                             exit = block.end_label
                             break
-                    retval = ControlFlowNode(dataflow, set([exit]), blockstack[:])
                     exits[label] = (exit,)
-                    return retval
+                    assert exit in exits
                 elif op == CONTINUE_LOOP:
                     # continue loop is *only* emitted if an active block needs to be triggered
                     for block in blockstack+[None]:
@@ -84,9 +91,8 @@ def parse(code_obj):
                             exit = block.end_label
                             break
                     # we ignore arg because it's possible that we're targeting a FINALLY block
-                    retval = ControlFlowNode(dataflow, set([exit]), blockstack[:])
                     exits[label] = (exit,)
-                    return retval
+                    assert exit in exits
                 elif op == RETURN_VALUE:
                     for block in blockstack+[None]:
                         if block is None:
@@ -94,22 +100,27 @@ def parse(code_obj):
                         elif block.type == "FUNCTION" or block.type == "FINALLY":
                             exit = block.end_label
                     exits[label] = (exit,)
-                    retval = ControlFlowNode(dataflow, set([exit]), blockstack[:])
-                    return retval
-                elif op == JUMP_FORWARD:
-                    pass
-                elif op == POP_JUMP_IF_TRUE:
-                    pass
-                elif op == POP_JUMP_IF_FALSE:
-                    pass
-                elif op == JUMP_IF_TRUE_OR_POP:
-                    pass
-                elif op == JUMP_IF_FALSE_OR_POP:
-                    pass
-                elif op == JUMP_ABSOLUTE:
-                    pass
-                elif op == FOR_ITER:
-                    pass
+                    assert exit in exits
+
+                # For all explicitly targeted jumps, we don't verify that the target is valid
+                # because we won't be able to serialize invalid targets anyway
+                elif op == JUMP_FORWARD or op == JUMP_ABSOLUTE:
+                    # unconditional jumps have only one exit
+                    exits[label] = (arg,)
+                    if arg not in exits:
+                        parse_controlflow(find_offset(code_list, arg), arg, blockstack[:])
+
+                # conditional jumps have two exits
+                elif op == POP_JUMP_IF_TRUE or op == POP_JUMP_IF_FALSE \
+                     or op == JUMP_IF_TRUE_OR_POP or op == JUMP_IF_FALSE_OR_POP \
+                     or op == FOR_ITER:
+                    next = code_list[i+1][1]
+                    assert isinstance(next, Label)
+                    exits[label] = (arg,next)
+                    if arg not in exits:
+                        parse_controlflow(find_offset(code_list, arg), arg, blockstack[:])
+                    if next not in exits:
+                        parse_controlflow(find_offset(code_list, next), next, blockstack[:])
                 elif op == RAISE_VARARGS:
                     pass
                 else:
