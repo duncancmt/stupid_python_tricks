@@ -73,7 +73,7 @@ def assemble(code, constants, local, labels, relocations, offset=0): #, local):
 			raise ValueError("Unknown opcode:", op)
 		v = opmap[op]
 		output += chr(v)
-		if v > HAVE_ARGUMENT:
+		if v >= HAVE_ARGUMENT:
 			if v in haslocal:
 				index = local[args[0]]
 				output += word(index)
