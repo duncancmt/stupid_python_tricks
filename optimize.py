@@ -17,13 +17,13 @@ class DataFlowNode(object):
         """
         op -> an instance of byeplay.Opcode, the opcode for this node of the tree
         args -> the argument to op, can be anything that byteplay will understand
-        dependencies -> a list of (DataFlowNode, int) tuples, the DataFlowNode is bytecode that produced the stack item that this consumed, the int is which of the outputs from the DataFlowNode we consumed (a negative value indicates that this node consumes no outputs)
+        dependencies -> a list of {(DataFlowNode, int) tuple, None}, the DataFlowNode is bytecode that produced the stack item that this consumed, the int is which of the outputs from the DataFlowNode we consumed (a negative value indicates that this node consumes no outputs). None indicates that this dependency lies outside the current ControlFlowNode.
         lineno -> optional, the line number of this opcode
         """
         assert getse(op, args)[0] == len(dependencies), "Wrong number of argument to opcode"
         assert isinstance(op, Opcode)
         # args can be anything
-        assert all(map(lambda (x,y): isinstance(x, DataFlowNode) and isinstance(y, (int, long)), dependencies))
+        assert all(map(lambda (x,y): isinstance(x, (DataFlowNode, NoneType)) and isinstance(y, (int, long)), dependencies))
         assert isinstance(lineno, (int, long, NoneType))
         self.op = op
         self.args = args
@@ -65,8 +65,10 @@ def parse(code_obj):
         # WARNING: there are always implicit exits from any ControlFlowNode, namely those that raise exceptions.
         #          These are not expressed in the control flow graph, only explicit transfers of control are.
         #          The exception to this rule is FINALLY blocks. These always have edges to all possible exits.
+        # TODO: fix and remove above warning
         # TODO: create root ControlFlowNode
         # TODO: appropriately skip over labels when recursing
+        # TODO: handle linenumbers
         for (i, (op, arg)) in imap(lambda i: (i, code_list[i]), xrange(start_index, len(code_list))):
             if op in hasexit \
                or op in hasblock \
@@ -160,40 +162,55 @@ def parse(code_obj):
                         parse_controlflow(i+1, exit, blockstack[:-1])
                 elif op == END_FINALLY:
                     # targets should be, bottom of function, containing block's target, containing loop (top and bottom), and falling off the end
-                    pass
+                    raise NotImplementedError
                 elif op == WITH_CLEANUP:
                     # see END_FINALLY
-                    pass
+                    raise NotImplementedError
                 else:
                     raise ValueError("Unrecognized block ending opcode")
             elif isinstance(op, Label):
                 exits[label] = (op,)
                 if exit not in exits:
                     parse_controlflow(i+1, op, blockstack[:])
+            elif op == SetLineno:
+                # TODO: handle line numbers
+                continue
             else:
                 continue
         assert all(map(lambda x: x in exits, exits[label])), "Unresolved exit"
     
     def parse_dataflow(exit_index, enter_index):
         def inner(start_index):
-            (op, arg) = code_list[start_index]
-            # TODO: line numbers
-            # TODO: base condition
-            (pops, pushes) = getse(op, arg)
-            dependencies = [None]*pops
-            dependency_index = 0
-            while dependency_index < pops:
-                for (start_index, dependency) in inner(start_index):
-                    # TODO: handle stop condition (enter_index)
-                    dependencies[dependency_index] = dependency
-                    dependency_index += 1
-            dependencies = tuple(dependencies)
-            node = DataFlowNode(op, arg, dependencies, lineno=None) # TODO: lineno
-            for i in xrange(pushes):
-                yield (start_index, (node, i))
+            if start_index == enter_index:
+                yield (start_index, None)
+            elif start_index < enter_index:
+                raise ValueError("Ran past the end of the control flow node")
+            else:
+                (op, arg) = code_list[start_index]
+                if op is SetLineno:
+                    yield (start_index+1, arg)
+                else:
+                    (pops, pushes) = getse(op, arg)
+                    if pops == 0:
+                        node = DataFlowNode(op, arg, (), lineno=None) # TODO: lineno
+                    else:
+                        dependencies = [None]*pops
+                        dependency_index = 0
+                        while dependency_index < pops:
+                            for (start_index, dependency) in inner(start_index):
+                                if isinstance(dependency, (int, long)):
+                                    # This is a line number
+                                    continue
+                                # dependency is either a (node, index) tuple or None (indicating out of range dependency)
+                                dependencies[dependency_index] = dependency
+                                dependency_index += 1
+                        dependencies = tuple(dependencies)
+                        node = DataFlowNode(op, arg, dependencies, lineno=None) # TODO: lineno
+                    for i in xrange(pushes):
+                        yield (start_index+1, (node, i))
 
         for i in (i, (op, arg)) in imap(lambda i: (i, code_list[i]), xrange(start_index, end_index-1, -1)):
-            pass
+            raise NotImplementedError
 
     
     
