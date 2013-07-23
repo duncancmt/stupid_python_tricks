@@ -248,7 +248,8 @@ class BasicProxy(object):
         try:
             cache = self._munge_cache
         except AttributeError:
-            cache = self._munge_cache = {}
+            cache = {}
+            object.__setattr__(self, '_munge_cache', cache)
 
         if name in cache and value is cache[name][0]:
             return cache[name][1]
@@ -352,8 +353,8 @@ class DescriptorProxy(BasicProxy):
 
     Inside the methods supplied by _generate_descriptor_methods, the underlying
     descriptor is available as self._obj . The instance that the descriptor
-    belongs to is instance._obj. The class that the descriptor belongs to is
-    owner._class.
+    proxy belongs to is instance._obj. The class that the descriptor belongs to
+    is owner._class.
     """    
     @classmethod
     def _generate_descriptor_methods(cls, name, has_get=False,
@@ -367,10 +368,7 @@ class DescriptorProxy(BasicProxy):
                 if instance is None:
                     return self._obj.__get__(None, owner._class)
                 else:
-                    # WHY RECURSION?????????
-                    #instance_obj = instance._obj
-                    instance_obj = getattr_static(instance,'_obj')
-                    return self._obj.__get__(instance_obj, owner._class)
+                    return self._obj.__get__(instance._obj, owner._class)
         else:
             get = None
 
@@ -414,15 +412,18 @@ class Proxy(BasicProxy):
 
     Subclasses should override _descriptor_proxy_class (see docstring for DescriptorProxy)
     and _munge_names (see docstring for BasicProxy._munge)
+
+    Special methods that are descriptors are excluded from modification.
     """
     
     _descriptor_proxy_class = DescriptorProxy
+    _no_descriptor_proxy_names = frozenset(['__get__', '__set__', '__delete__']) | frozenset(BasicProxy.__dict__.keys())
 
     @classmethod
     def _load_descriptors(cls, theclass, namespace):
         """Load all descriptors into namespace in preparation for creating the proxy class."""
         for name in dir(theclass):
-            if name in set(['__get__', '__set__', '__delete__'])\
+            if name in cls._no_descriptor_proxy_names \
                    or name in namespace:
                 continue
             attr = getattr_static(theclass, name)
@@ -447,6 +448,39 @@ class BetterProxy(Proxy):
 
     For further information, see docstring for Proxy
     """
+
+    @classmethod
+    def _finalize_namespace(cls, theclass, namespace, *args, **kwargs):
+        """
+        If a __i*__ method is not defined, but the corresponding __*__ isn't,
+        define a __i*__ method with appropriate semantics.
+        """
+        def make_method(name):
+            def method(self, other, mod=None):
+                if name == '__pow__':
+                    result = getattr(self, name)(other, mod)
+                else:
+                    result = getattr(self, name)(other)
+                return cls(result)
+            return method
+
+        for name, iname in [('__add__', '__iadd__'),
+                            ('__sub__', '__isub__'),
+                            ('__mul__', '__imul__'),
+                            ('__div__', '__idiv__'),
+                            ('__truediv__', '__itruediv__'),
+                            ('__floordiv__', '__ifloordiv__'),
+                            ('__mod__', '__imod__'),
+                            ('__pow__', '__ipow__'),
+                            ('__lshift__', '__ilshift__'),
+                            ('__rshift__', '__irshift__'),
+                            ('__and__', '__iand__'),
+                            ('__xor__', '__ixor__'),
+                            ('__or__', '__ior__')]:
+            if name in namespace and iname not in namespace:
+                namespace[iname] = make_method(name)
+
+        super(BetterProxy, cls)._finalize_namespace(theclass, namespace, *args, **kwargs)
 
     def _reproxy(self, name, value):
         cls = type(self)
