@@ -420,7 +420,7 @@ class Proxy(BasicProxy):
     _no_descriptor_proxy_names = frozenset(['__get__', '__set__', '__delete__']) | frozenset(BasicProxy.__dict__.keys())
 
     @classmethod
-    def _load_descriptors(cls, theclass, namespace):
+    def _load_descriptors(cls, theclass, namespace, *args, **kwargs):
         """Load all descriptors into namespace in preparation for creating the proxy class."""
         for name in dir(theclass):
             if name in cls._no_descriptor_proxy_names \
@@ -446,22 +446,27 @@ class BetterProxy(Proxy):
     This proxy class attempts to proxy the return values of the __i*__ methods.
     These methods would normally return an un-proxied objecy.
 
+    If aggressive=True is passed, we will also attempt to proxy the output of
+    the normal arithmetic __*__ methods.
+
     For further information, see docstring for Proxy
     """
 
     @classmethod
-    def _finalize_namespace(cls, theclass, namespace, *args, **kwargs):
+    def _finalize_namespace(cls, theclass, namespace, aggressive=False, *args, **kwargs):
         """
-        If a __i*__ method is not defined, but the corresponding __*__ isn't,
+        If a __i*__ method is not defined, but the corresponding __*__ is,
         define a __i*__ method with appropriate semantics.
+        Handle aggressive proxying.
         """
-        def make_method(name):
-            def method(self, other, mod=None):
-                if name == '__pow__':
-                    result = getattr(self, name)(other, mod)
-                else:
-                    result = getattr(self, name)(other)
-                return cls(result)
+        def make_imethod(name):
+            def method(self, *args, **kwargs):
+                return cls(getattr(self, name)(*args, **kwargs))
+            return method
+
+        def make_method(old):
+            def method(self, *args, **kwargs):
+                return cls(old(self, *args, **kwargs))
             return method
 
         for name, iname in [('__add__', '__iadd__'),
@@ -477,8 +482,11 @@ class BetterProxy(Proxy):
                             ('__and__', '__iand__'),
                             ('__xor__', '__ixor__'),
                             ('__or__', '__ior__')]:
-            if name in namespace and iname not in namespace:
-                namespace[iname] = make_method(name)
+            if name in namespace:
+                if aggressive:
+                    namespace[name] = make_method(namespace[name])
+                elif iname not in namespace:
+                    namespace[iname] = make_imethod(name)
 
         super(BetterProxy, cls)._finalize_namespace(theclass, namespace, *args, **kwargs)
 
