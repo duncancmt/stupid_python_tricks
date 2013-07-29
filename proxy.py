@@ -118,7 +118,6 @@ def checkdescriptor(obj, name):
 
 from abc import ABCMeta
 
-# TODO: _special_names are *all* methods, they *must not* be munged to descriptors
 # TODO: this doesn't work: `cls.meth(proxy, *args, **kwargs)` when proxy is a proxy for an object of type cls
 class BasicProxy(object):
     """
@@ -130,7 +129,7 @@ class BasicProxy(object):
 
     Subclasses should override _munge_names (see docstring for BasicProxy._munge)
     """
-    # TOOD: add bits of the docstrings from _munge and _do_munge and reference them from Proxy's docstring
+    # TODO: add bits of the docstrings from _munge and _do_munge and reference them from Proxy's docstring
     
     __metaclass__ = ABCMeta
     
@@ -245,6 +244,10 @@ class BasicProxy(object):
         method names to descriptioins of how to munge that name (see the
         docstring for _do_munge)
         """
+
+        # This is safe, even with descriptors, because the descriptor will
+        # always execute, then only if the result of the descriptor is
+        # identical to the cached value, will the cached result be returned
         try:
             cache = self._munge_cache
         except AttributeError:
@@ -314,26 +317,40 @@ class BasicProxy(object):
         cls._load_special_names(theclass, namespace, *args, **kwargs)
         cls._load_descriptors(theclass, namespace, *args, **kwargs)
         cls._finalize_namespace(theclass, namespace, *args, **kwargs)
-        
-        return type("%s(%s)" % (cls.__name__, theclass.__name__), (cls,), namespace)
-    
-    def __new__(cls, obj, *args, **kwargs):
+
+        try:
+            retval = cls.__metaclass__("%s(%s)" % (cls.__name__, theclass.__name__), (cls,), namespace)
+        except AttributeError:
+            retval = type("%s(%s)" % (cls.__name__, theclass.__name__), (cls,), namespace)
+        retval.register(retval._class)
+        return retval
+
+    @classmethod
+    def _get_class_proxy(cls, obj, *args, **kwargs):
         """
-        creates an proxy instance referencing `obj`. (obj, *args, **kwargs) are
-        passed to this class' __init__, so deriving classes can define an 
-        __init__ method of their own.
-        note: _class_proxy_cache is unique per deriving class (each deriving
-        class must hold its own cache)
+        Return the proxy class from the cache if it's already been created.
+        Otherwise, create it and return it.
         """
         try:
             cache = cls.__dict__["_class_proxy_cache"]
         except KeyError:
             cls._class_proxy_cache = cache = {}
+
         try:
             theclass = cache[obj.__class__]
         except KeyError:
             cache[obj.__class__] = theclass = cls._create_class_proxy(obj.__class__, *args, **kwargs)
-        theclass.register(obj.__class__)
+        return theclass
+    
+    def __new__(cls, obj, *args, **kwargs):
+        """
+        creates an proxy instance referencing `obj`. (obj, *args, **kwargs) are
+        passed to this class' __init__, so deriving classes can define an
+        __init__ method of their own.
+        note: _class_proxy_cache is unique per deriving class (each deriving
+        class must hold its own cache)
+        """
+        theclass = cls._get_class_proxy(obj, *args, **kwargs)
         ins = object.__new__(theclass)
         theclass.__init__(ins, obj, *args, **kwargs)
         return ins
@@ -349,7 +366,9 @@ class DescriptorProxy(BasicProxy):
     _generate_descriptor_methods should return a 3-tuple of (get, set, delete)
     functions to be bound as methods in the descriptor proxy. If non-callable
     objects are supplied as any of (get, set, delete), then that method will
-    be missing in the descriptor proxy.
+    be missing in the descriptor proxy. If _generate_descriptor_methods raises
+    AttributeError, the descriptor will not be proxied by this descriptor
+    proxy. (it may still be proxied by subclasses)
 
     Inside the methods supplied by _generate_descriptor_methods, the underlying
     descriptor is available as self._obj . The instance that the descriptor
@@ -413,7 +432,10 @@ class Proxy(BasicProxy):
     Subclasses should override _descriptor_proxy_class (see docstring for DescriptorProxy)
     and _munge_names (see docstring for BasicProxy._munge)
 
+    Descriptor proxies are applied in reverse order. The parent's descriptor proxy is applied first.
+
     Special methods that are descriptors are excluded from modification.
+    It should be noted that methods, classmethods, and staticmethods are all descriptors.
     """
     
     _descriptor_proxy_class = DescriptorProxy
@@ -425,19 +447,19 @@ class Proxy(BasicProxy):
         for name in dir(theclass):
             if name in cls._no_descriptor_proxy_names \
                    or name in namespace:
+                # Names in the namespace and _no_descriptor_proxy_names are those that
+                # sometimes get looked up by Python's internals. Making descriptor
+                # proxies of those names results in very strange behavior.
                 continue
             attr = getattr_static(theclass, name)
-            
-            # it seems dumb that we have to special case these kinds of attributes...
-            if isdescriptor(attr) \
-               and not ( inspect.isgetsetdescriptor(attr) \
-                         or inspect.ismemberdescriptor(attr) \
-                         or inspect.isbuiltin(attr) ):
-                try:
-                    namespace[name] = cls._descriptor_proxy_class(attr, name)
-                except AttributeError:
-                    continue
 
+            if isdescriptor(attr):
+                for klass in reversed(cls.__mro__):
+                    try:
+                        namespace[name] = attr = klass._descriptor_proxy_class(attr, name)
+                    except AttributeError:
+                        continue
+        
         super(Proxy, cls)._load_descriptors(theclass, namespace)
 
 
