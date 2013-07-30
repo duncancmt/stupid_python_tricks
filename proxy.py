@@ -339,7 +339,11 @@ class BasicProxy(object):
         try:
             theclass = cache[obj.__class__]
         except KeyError:
-            cache[obj.__class__] = theclass = cls._create_class_proxy(obj.__class__, *args, **kwargs)
+            theclass = cls._create_class_proxy(obj.__class__, *args, **kwargs)
+            try:
+                cache[(obj.__class__, tuple(args), tuple(sorted(kwargs.iteritems())))] = theclass
+            except TypeError:
+                pass
         return theclass
     
     def __new__(cls, obj, *args, **kwargs):
@@ -483,12 +487,12 @@ class BetterProxy(Proxy):
         """
         def make_imethod(name):
             def method(self, *args, **kwargs):
-                return cls(getattr(self, name)(*args, **kwargs))
+                return cls(getattr(self, name)(*args, **kwargs), aggressive=aggressive)
             return method
 
         def make_method(old):
             def method(self, *args, **kwargs):
-                return cls(old(self, *args, **kwargs))
+                return cls(old(self, *args, **kwargs), aggressive=aggressive)
             return method
 
         for name, iname in [('__add__', '__iadd__'),
@@ -510,14 +514,20 @@ class BetterProxy(Proxy):
                 elif iname not in namespace:
                     namespace[iname] = make_imethod(name)
 
-        super(BetterProxy, cls)._finalize_namespace(theclass, namespace, *args, **kwargs)
+        namespace['_aggressive'] = aggressive
+        super(BetterProxy, cls)._finalize_namespace(theclass, namespace, aggressive=aggressive,
+                                                    *args, **kwargs)
 
     def _reproxy(self, name, value):
         cls = type(self)
 
         if callable(value):
             def munged(*args, **kwargs):
-                return cls(value(*args, **kwargs))
+                retval = value(*args, **kwargs)
+                if isinstance(retval, cls):
+                    return retval
+                else:
+                    return cls(retval, aggressive=cls._aggressive)
             return munged
         else:
             return cls(value)
