@@ -1,14 +1,5 @@
 from collections import deque
-
-class Wrapper(object):
-    def __init__(self,original):
-        self._underlying = original
-
-    def __getattribute__(self,name):
-        try:
-            return object.__getattribute__(self,name)
-        except AttributeError:
-            return getattr(object.__getattribute__(self,"_underlying"),name)
+from proxy import BetterProxy
 
 class IterWrapper(Wrapper):
     """This class adds a bunch of useful functionality to iterators.
@@ -22,20 +13,20 @@ class IterWrapper(Wrapper):
 
     All other methods of the iterator are mirrored unmodified.
     """
-    def __init__(self,original):
+    def __init__(self, obj):
         try:
-            original.next
+            obj.next
         except AttributeError:
-            original = iter(original)
-        self._underlying = original
-        self._cache = deque()
+            obj = iter(obj)
+        super(IterWrapper, self).__init__(obj)
+        object.__setattr__(self, '_cache', deque())
 
     def __iter__(self):
         return self
 
     def next(self):
         if len(self._cache) == 0:
-            return self._underlying.next()
+            return self._obj.next()
         else:
             return self._cache.popleft()
 
@@ -51,9 +42,7 @@ class IterWrapper(Wrapper):
 
     def __getitem__(self,index):
         if isinstance(index,slice):
-            start = index.start
-            stop = index.stop
-            step = index.step
+            start, stop, step = index.start, index.stop, index.step
 
             if start is None:
                 start = 0
@@ -66,14 +55,14 @@ class IterWrapper(Wrapper):
                 raise IndexError("Can't peek from the end of the iterator")
                 
             if stop is None:
-                self._cache.extend(self._underlying)
+                self._cache.extend(self._obj)
                 return list(self._cache[start::step])
             elif stop < 0:
                 raise IndexError("Can't peek from the end of the iterator")
             else:
                 try:
                     for i in xrange(len(self._cache),stop):
-                        self._cache.append(self._underlying.next())
+                        self._cache.append(self._obj.next())
                 except StopIteration:
                     pass
                 return list(self._cache[start:stop:step])
@@ -86,7 +75,7 @@ class IterWrapper(Wrapper):
                 else:
                     try:
                         for i in xrange(index+1-len(self._cache)):
-                            self._cache.append(self._underlying.next())
+                            self._cache.append(self._obj.next())
                         return self._cache[index]
                     except StopIteration:
                         raise IndexError("Peek index out of range")
