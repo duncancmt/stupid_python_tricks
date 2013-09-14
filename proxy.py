@@ -5,8 +5,8 @@ _sentinel = object()
 
 def _static_getmro(klass):
     retval = type.__dict__['__mro__'].__get__(klass)
-    # if retval is None:
-    #     retval = list()
+    if retval is None:
+        retval = list()
     return retval
 
 def _check_instance(obj, attr):
