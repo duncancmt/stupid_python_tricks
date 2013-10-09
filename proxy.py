@@ -6,7 +6,7 @@ _sentinel = object()
 def _static_getmro(klass):
     retval = type.__dict__['__mro__'].__get__(klass)
     if retval is None:
-        retval = list()
+        retval = tuple()
     return retval
 
 def _check_instance(obj, attr):
@@ -91,10 +91,9 @@ def getattr_static(obj, attr, default=_sentinel):
                     pass
     if default is not _sentinel:
         return default
-    raise AttributeError(attr)
+    raise AttributeError('%s object has no attribute %s' % (repr(type(obj).__name__), repr(attr)))
 
 # ============ end getattr_static backported from 3.2 ===========
-import inspect
 
 def hasattr_static(obj, name):
     try:
@@ -285,7 +284,7 @@ class BasicProxy(object):
             return method
         
         for name in cls._special_names:
-            if hasattr(theclass, name):
+            if hasattr(theclass, name) and not hasattr(cls, name):
                 namespace[name] = make_method(name)
 
     @classmethod
@@ -322,7 +321,8 @@ class BasicProxy(object):
             retval = cls.__metaclass__("%s(%s)" % (cls.__name__, theclass.__name__), (cls,), namespace)
         except AttributeError:
             retval = type("%s(%s)" % (cls.__name__, theclass.__name__), (cls,), namespace)
-        retval.register(retval._class)
+        # TODO: debug this line
+        # retval.register(retval._class)
         return retval
 
     @classmethod
@@ -331,17 +331,23 @@ class BasicProxy(object):
         Return the proxy class from the cache if it's already been created.
         Otherwise, create it and return it.
         """
-        try:
+        if hasattr(cls, "_class"):
+            # For programmatically derived classes, get the original cache
+            cls = cls.__mro__[1]
             cache = cls.__dict__["_class_proxy_cache"]
-        except KeyError:
-            cls._class_proxy_cache = cache = {}
+        else:
+            try:
+                cache = cls.__dict__["_class_proxy_cache"]
+            except KeyError:
+                cls._class_proxy_cache = cache = {}
 
+        key = (obj.__class__, tuple(args), tuple(sorted(kwargs.iteritems())))
         try:
-            theclass = cache[obj.__class__]
+            theclass = cache[key]
         except KeyError:
             theclass = cls._create_class_proxy(obj.__class__, *args, **kwargs)
             try:
-                cache[(obj.__class__, tuple(args), tuple(sorted(kwargs.iteritems())))] = theclass
+                cache[key] = theclass
             except TypeError:
                 pass
         return theclass

@@ -12,6 +12,11 @@ hasblock = set([SETUP_WITH, SETUP_LOOP, SETUP_EXCEPT, SETUP_FINALLY])
 hasendblock = set([POP_BLOCK, END_FINALLY, WITH_CLEANUP])
 # YIELD_VALUE isn't really a nonlocal exit, although it does break the dataflow tree
 
+
+if sys.version[:5] != "2.7.5":
+    warnings.warn("This module was written for python 2.7.5. Behavior may not be correct for other versions")
+
+
 class DataFlowNode(object):
     def __init__(self, op, args, dependencies=(), lineno=None):
         """
@@ -219,8 +224,6 @@ def parse(code_obj):
             
 def tailcall_optimized(safe=False):
     # This probably can't handle functions with >255 arguments
-    if sys.version[:5] != "2.7.5":
-        warnings.warn("tailcall_optimized was written for python 2.7.5. Behavior may not be correct for other versions")
     def decorator(f):
         assert inspect.isfunction(f)
         c = Code.from_code(f.func_code)
