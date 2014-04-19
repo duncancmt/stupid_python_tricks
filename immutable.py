@@ -90,6 +90,8 @@ class ImmutableDict(ImmutableDictBase, Mapping):
         return len(self.__underlying)
     def __hash__(self):
         return hash(frozenset(self.__underlying.iteritems()))
+    def __repr__(self):
+        return "ImmutableDict(%s)" % repr(self.__underlying)
 
 FrozenDict = ImmutableDict
 
