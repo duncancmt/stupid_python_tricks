@@ -2,6 +2,7 @@ from collections import deque
 from weakref import WeakSet
 from itertools import *
 from operator import *
+from heapq import heappush, heappop
 
 debug = False
 
@@ -68,5 +69,17 @@ def bfs(root_state, successor, is_goal, operators):
     return generic_search(schedule.__len__, schedule.append, schedule.popleft,
                           root_state, successor, is_goal, operators)
 
+def ucs(root_state, successor, is_goal, operators, cost):
+    schedule = list()
+    def add_to_schedule(node):
+        # python2's scoping rules are asinine
+        heappush(schedule, (cost(node.state), add_to_schedule.pushcount, node))
+        add_to_schedule.pushcount += 1
+    add_to_schedule.pushcount = 0
+    def get_next_from_schedule():
+        return heappop(schedule)[-1]
+    return generic_search(schedule.__len__, add_to_schedule, get_next_from_schedule,
+                          root_state, successor, is_goal, operators)
 
-__all__ = ['dfs', 'bfs']
+
+__all__ = ['dfs', 'bfs', 'ucs']
