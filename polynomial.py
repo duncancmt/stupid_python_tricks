@@ -61,7 +61,7 @@ class Term(object):
         elif self.coeff == 0:
             return type(other)(other.coeff, other.powers)
         elif other.coeff == 0:
-            return type(self)(self.coeff, other.powers)
+            return type(self)(self.coeff, self.powers)
         else:
             raise ValueError("Incompatible terms")
 
@@ -76,10 +76,16 @@ class Term(object):
     def __hash__(self):
         return hash(self.coeff) ^ hash(self.powers)
 
+    def subsumes(self, other):
+        retval = abs(self.coeff) >= abs(other.coeff)
+        for var in frozenset(chain(self.powers.iterkeys(), other.powers.iterkeys())):
+            retval &= abs(self.powers.get(var, 0)) >= abs(other.powers.get(var, 0))
+        return retval
+
     def compare(self, other, comparison):
         retval = comparison(self.coeff, other.coeff)
-        for var, power in self.powers.iteritems():
-            retval &= comparison(self.powers[var], other.powers.get(var, 0))
+        for var in frozenset(chain(self.powers.iterkeys(), other.powers.iterkeys())):
+            retval &= comparison(self.powers.get(var, 0), other.powers.get(var, 0))
         return retval
     def __lt__(self, other):
         return self.compare(other, lt)
@@ -105,7 +111,7 @@ class Term(object):
                 return c
         return 0
 
-    def __repr__(self):
+    def __str__(self):
         def format_power((var, power)):
             if power == 1:
                 return var
@@ -119,6 +125,8 @@ class Term(object):
         else:
             return "%s*%s" % (repr(self.coeff), "*".join(imap(format_power, sorted(self.powers.iteritems()))))
 
+    def __repr__(self):
+        return "Term(%s,%s)" % (repr(self.coeff), dict(self.powers))
 
     @property
     def coeff(self):
@@ -191,17 +199,22 @@ class Polynomial(object):
         if self == type(self)():
             return False
         for i, j in product(self.terms, other.terms):
-            if i >= j and type(self)(self.terms - frozenset((i,)))\
-                            .subsumes(type(other)(other.terms - frozenset((j,)))):
+            if i.subsumes(j)\
+                   and type(self)(self.terms - frozenset((i,)))\
+                         .subsumes(type(other)(other.terms - frozenset((j,)))):
                 return True
         return False
 
     def __eq__(self, other):
         return self.terms == other.terms
 
+    def __str__(self):
+        return " + ".join(imap(str, sorted(self.terms, reverse=True,
+                                           cmp=lambda x,y: x.lexicographic_cmp(y))))
+
     def __repr__(self):
-        return " + ".join(imap(repr, sorted(self.terms, reverse=True,
-                                            cmp=lambda x,y: x.lexicographic_cmp(y))))
+        return "Polynomial(%s)" % ", ".join(imap(repr, sorted(self.terms, reverse=True,
+                                                              cmp=lambda x,y: x.lexicographic_cmp(y))))
 
     def __hash__(self):
         return hash(self.terms)
