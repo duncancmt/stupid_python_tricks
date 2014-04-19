@@ -1,3 +1,9 @@
+from collections import Mapping
+from noconflict import classmaker
+
+# python's built-in abc module sets these attributes on classes
+ok_mutable_names = ['_abc_negative_cache', '_abc_negative_cache_version']
+
 class ImmutableEnforcerMeta(type):
     def __new__(mcls, name, bases, namespace):
         old_setattr = namespace.get('__setattr__', object.__setattr__)
@@ -10,33 +16,34 @@ class ImmutableEnforcerMeta(type):
         def __setattr__(self, name, value):
             if name[0] == '_':
                 if name in object_dict_getter(self):
-                    raise AttributeError('Cannot mutate private attribute of %s' % repr(self))
+                    raise AttributeError('Cannot mutate private attribute %s of %s' % (repr(name), repr(self)))
                 mro = mro_getter(type(self))
                 if mro is None:
                     mro = tuple()
                 for c in mro:
                     if name in type_dict_getter(c):
-                        raise AttributeError('Cannot mutate private attribute of %s' % repr(self))
+                        raise AttributeError('Cannot mutate private attribute %s of %s' % (repr(name), repr(self)))
             return old_setattr(self, name, value)
 
         def __delattr__(self, name):
             if name[0] == '_':
                 if name in object_dict_getter(self):
-                    raise AttributeError('Cannot delete private attribute of %s' % repr(self))
+                    raise AttributeError('Cannot delete private attribute %s of %s' % (repr(name), repr(self)))
                 mro = mro_getter(type(self))
                 if mro is None:
                     mro = tuple()
                 for c in mro:
                     if name in type_dict_getter(c):
-                        raise AttributeError('Cannot delete private attribute of %s' % repr(self))
+                        raise AttributeError('Cannot delete private attribute %s of %s' % (repr(name), repr(self)))
             return old_delattr(self, name)
 
         namespace = dict(namespace)
         namespace['__setattr__'] = __setattr__
         namespace['__delattr__'] = __delattr__
-        namespace['__immutable__'] = False
+        # python name munging changes __immutable to this
+        namespace['_ImmutableEnforcerMeta__immutable'] = False
         cls = super(ImmutableEnforcerMeta, mcls).__new__(mcls, name, bases, namespace)
-        cls.__immutable__ = True
+        cls.__immutable = True
         return cls
 
 
@@ -45,13 +52,13 @@ class ImmutableEnforcerMeta(type):
         dict_getter = type.__dict__['__dict__'].__get__
         static_setattr = type.__setattr__
 
-        if name[0] == '_' and cls.__immutable__:
+        if name[0] == '_' and cls.__immutable and name not in ok_mutable_names:
             mro = mro_getter(cls)
             if mro is None:
                 mro = tuple()
             for c in mro:
                 if name in dict_getter(c):
-                    raise AttributeError('Cannot mutate private attribute of %s' % repr(cls))
+                    raise AttributeError('Cannot mutate private attribute %s of %s' % (repr(name), repr(cls)))
         return static_setattr(cls, name, value)
 
 
@@ -60,14 +67,30 @@ class ImmutableEnforcerMeta(type):
         dict_getter = type.__dict__['__dict__'].__get__
         static_setattr = type.__setattr__
 
-        if name[0] == '_' and cls.__immutable__:
+        if name[0] == '_' and cls.__immutable:
             mro = mro_getter(cls)
             if mro is None:
                 mro = tuple()
             for c in mro:
                 if name in dict_getter(c):
-                    raise AttributeError('Cannot delete private attribute of %s' % repr(cls))
+                    raise AttributeError('Cannot delete private attribute %s of %s' % (repr(name), repr(cls)))
         return static_setattr(cls, name, value)
 
+class ImmutableDictBase(object):
+    __metaclass__ = ImmutableEnforcerMeta
+class ImmutableDict(ImmutableDictBase, Mapping):
+    __metaclass__ = classmaker()
+    def __init__(self, *args, **kwargs):
+        self.__underlying = dict(*args, **kwargs)
+    def __getitem__(self, key):
+        return self.__underlying[key]
+    def __iter__(self):
+        return iter(self.__underlying)
+    def __len__(self):
+        return len(self.__underlying)
+    def __hash__(self):
+        return hash(frozenset(self.__underlying.iteritems()))
 
-__all__ = ['ImmutableEnforcerMeta']
+FrozenDict = ImmutableDict
+
+__all__ = ['ImmutableEnforcerMeta', 'ImmutableDict', 'FrozenDict']
