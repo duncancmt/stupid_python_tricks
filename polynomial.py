@@ -33,6 +33,8 @@ class Term(object):
             else:
                 raise TypeError("Invalid term element",a)
         self.coeff = coeff
+        if self.coeff == 0:
+            powers = dict()
         self.trim_powers(powers)
         self.powers = ImmutableDict(powers)
 
@@ -56,6 +58,10 @@ class Term(object):
     def __add__(self, other):
         if self.powers == other.powers:
             return type(self)(self.coeff + other.coeff, self.powers)
+        elif self.coeff == 0:
+            return type(other)(other.coeff, other.powers)
+        elif other.coeff == 0:
+            return type(self)(self.coeff, other.powers)
         else:
             raise ValueError("Incompatible terms")
 
@@ -73,7 +79,7 @@ class Term(object):
     def compare(self, other, comparison):
         retval = comparison(self.coeff, other.coeff)
         for var, power in self.powers.iteritems():
-            retval &= comparison(self.powers[var], self.other.powers.get(var, 0))
+            retval &= comparison(self.powers[var], other.powers.get(var, 0))
         return retval
     def __lt__(self, other):
         return self.compare(other, lt)
@@ -130,7 +136,7 @@ class Term(object):
 class Polynomial(object):
     __metaclass__ = ImmutableEnforcerMeta
     def __init__(self, *args):
-        terms = []
+        terms = [Term(0)]
         for a in args:
             if isinstance(a, Term):
                 terms.append(a)
@@ -179,26 +185,19 @@ class Polynomial(object):
         return self + -other
 
 
-    def compare(self, other, comparison):
+    def subsumes(self, other):
+        if other == type(other)():
+            return True
+        if self == type(self)():
+            return False
         for i, j in product(self.terms, other.terms):
-            if comparison(i, j):
-                if type(self)(self.terms - frozenset((i,)))\
-                       .compare(type(other)(other.terms - frozenset((j,))),
-                                comparison):
-                    return True
+            if i >= j and type(self)(self.terms - frozenset((i,)))\
+                            .subsumes(type(other)(other.terms - frozenset((j,)))):
+                return True
         return False
-    def __lt__(self, other):
-        return self.compare(other, lt)
-    def __le__(self, other):
-        return self.compare(other, le)
+
     def __eq__(self, other):
         return self.terms == other.terms
-    def __ne__(self, other):
-        return self.terms != other.terms
-    def __gt__(self, other):
-        return self.compare(other, gt)
-    def __ge__(self, other):
-        return self.compare(other, ge)
 
     def __repr__(self):
         return " + ".join(imap(repr, sorted(self.terms, reverse=True,
