@@ -1,45 +1,49 @@
+from immutable import ImmutableEnforcerMeta, ImmutableDict
 from itertools import *
 from operator import *
-from collections import Iterable
+from collections import Iterable, Mapping
 from numbers import Real
 
-# TODO: make shit immutable
-
 class Term(object):
+    __metaclass__ = ImmutableEnforcerMeta
+    # TODO: define __slots__
     def __init__(self, *args):
         super(Term, self).__init__()
-        self.coeff = 1
-        self.powers = dict()
+        coeff = 1
+        powers = dict()
 
         def put_var(var, power):
             if not isinstance(var, basestring):
                 raise TypeError("Invalid variable name",var)
             if not isinstance(power, Real):
                 raise TypeError("Invalid variable power",power)
-            self.powers[var] = self.powers.get(var, 0) + power
+            powers[var] = powers.get(var, 0) + power
 
 
         for a in args:
             if isinstance(a, Real):
-                self.coeff *= a
+                coeff *= a
             elif isinstance(a, basestring):
-                self.powers[a] = self.powers.get(a, 0) + 1
-            elif isinstance(a, dict):
+                powers[a] = powers.get(a, 0) + 1
+            elif isinstance(a, Mapping):
                 for (var, power) in a.iteritems():
                     put_var(var, power)
             elif isinstance(a, tuple):
                 put_var(*a)
             else:
                 raise TypeError("Invalid term element",a)
-        self.trim_powers()
+        self.coeff = coeff
+        self.trim_powers(powers)
+        self.powers = ImmutableDict(powers)
 
-    def trim_powers(self):
+    @staticmethod
+    def trim_powers(powers):
         to_delete = []
-        for var, power in self.powers.iteritems():
+        for var, power in powers.iteritems():
             if power == 0:
                 to_delete.append(var)
         for var in to_delete:
-            del self.powers[var]
+            del powers[var]
 
     def __rmul__(self, other):
         return self * other
@@ -64,8 +68,7 @@ class Term(object):
         return self + -other
     
     def __hash__(self):
-        return hash(frozenset((self.coeff,))|frozenset(self.powers.iteritems()))
-
+        return hash(self.coeff) ^ hash(self.powers)
 
     def compare(self, other, comparison):
         retval = comparison(self.coeff, other.coeff)
@@ -110,7 +113,22 @@ class Term(object):
         else:
             return "%s*%s" % (repr(self.coeff), "*".join(imap(format_power, sorted(self.powers.iteritems()))))
 
+
+    @property
+    def coeff(self):
+        return self.__coeff
+    @coeff.setter
+    def coeff(self, value):
+        self.__coeff = value
+    @property
+    def powers(self):
+        return self.__powers
+    @powers.setter
+    def powers(self, value):
+        self.__powers = value
+
 class Polynomial(object):
+    __metaclass__ = ImmutableEnforcerMeta
     def __init__(self, *args):
         terms = []
         for a in args:
@@ -124,12 +142,13 @@ class Polynomial(object):
             else:
                 raise TypeError("All arguments to Polynomial must be Term instances")
             
-        self.terms = frozenset(terms)
-        self.combine_terms()
+        self.terms = self.combine_terms(terms)
 
-    def combine_terms(self):
+
+    @staticmethod
+    def combine_terms(terms):
         new_terms = []
-        for t in self.terms:
+        for t in terms:
             for i in xrange(len(new_terms)):
                 try:
                     t += new_terms[i]
@@ -138,7 +157,7 @@ class Polynomial(object):
                 except ValueError:
                     pass
             new_terms.append(t)
-        self.terms = frozenset(new_terms)
+        return(frozenset(new_terms))
         
 
     def __rmul__(self, other):
@@ -184,3 +203,16 @@ class Polynomial(object):
     def __repr__(self):
         return " + ".join(imap(repr, sorted(self.terms, reverse=True,
                                             cmp=lambda x,y: x.lexicographic_cmp(y))))
+
+    def __hash__(self):
+        return hash(self.terms)
+
+    @property
+    def terms(self):
+        return self.__terms
+    @terms.setter
+    def terms(self, value):
+        self.__terms = value
+
+
+__all__ = ['Term', 'Polynomial']
