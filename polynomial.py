@@ -218,6 +218,8 @@ class Polynomial(object):
 
     def __hash__(self):
         return hash(self.terms)
+    def __len__(self):
+        return len(self.terms)
 
     @property
     def terms(self):
