@@ -87,7 +87,10 @@ def ucs(root_state, successor, is_goal, operators, cost):
                                   cost(self.parent.state
                                          if self.parent is not None
                                          else None,
-                                       self.op, self.state) + self.parent.cost))
+                                       self.op, self.state) \
+                                  + (self.parent.cost
+                                       if self.parent is not None
+                                       else 0)))
         return generic_classfactory(successor, is_goal, operators, receiver, namespace)
 
     return generic_search(schedule.__len__, add_to_schedule, get_next_from_schedule,
