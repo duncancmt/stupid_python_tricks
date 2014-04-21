@@ -4,6 +4,7 @@
 
 from weakref import ref
 from itertools import *
+from operator import *
 
 strong_refs = set()
 
@@ -22,9 +23,9 @@ class WeakCompoundKey(object):
     def __init__(self, *args, **kwargs):
         super(WeakCompoundKey, self).__init__()
         self.__hash = hash(args) ^ hash(frozenset(kwargs.iteritems()))
-        strong_refs.add(self)
         self.__refs = frozenset(imap(lambda (x,y): (x, self.make_refs(y)),
                                      chain(enumerate(args), kwargs.iteritems())))
+        strong_refs.add(self)
     def make_refs(self, *things):
         # we try really, really hard not to accidentally make
         # reference cycles with closures
