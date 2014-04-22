@@ -3,8 +3,7 @@
 # WeakCompoundKey AS KEYS IN A weakref.WeakKeyDictionary
 
 from weakref import ref
-from itertools import *
-from operator import *
+from itertools import imap, chain
 
 strong_refs = set()
 
@@ -22,26 +21,9 @@ class WeakCompoundKey(object):
     # can't use ImmutableEnforcerMeta (we need to delete self.__refs)
     def __init__(self, *args, **kwargs):
         super(WeakCompoundKey, self).__init__()
-        self.__hash = hash(args) ^ hash(frozenset(kwargs.iteritems()))
-        self.__refs = frozenset(imap(lambda (x,y): (x, self.make_refs(y)),
+        self.__refs = frozenset(imap(lambda (x,y): (x, ref(y, lambda _: self.__explode())),
                                      chain(enumerate(args), kwargs.iteritems())))
         strong_refs.add(self)
-    def make_refs(self, *things):
-        # we try really, really hard not to accidentally make
-        # reference cycles with closures
-        def make_callback(others):
-            def callback(_):
-                if all(imap(lambda x: x() is None, others)):
-                    self.__explode()
-            return callback
-
-        return tuple(imap(lambda thing: ref(thing,
-                                            make_callback(
-                                              tuple(
-                                                ifilter(lambda x: x is not thing,
-                                                        things)))),
-                          things))
-
     def __explode(self):
         # It's possible to call __explode multiple times because
         # callback inside make_refs is not threadsafe. However, this
@@ -58,37 +40,8 @@ class WeakCompoundKey(object):
         # to ourself)
 
     def __hash__(self):
-        return self.__hash
+        return hash(self.__refs)
     def __eq__(self, other):
-        if self is other:
-            return True
-        def unpack(refs):
-            return dict(imap(lambda (x, y):
-                               (x, frozenset(imap(lambda ref: ref(), y))),
-                             refs))
-        self_unpacked = unpack(self.__refs)
-        other_unpacked = unpack(other.__refs)
-        sentinel = [object()]
-        for name in frozenset(chain(self_unpacked.iterkeys(), other_unpacked.iterkeys())):
-            if all(imap(lambda (x, y): x == y, product(self_unpacked.get(name, sentinel),
-                                                       other_unpacked.get(name, sentinel)))):
-                self_unpacked[name] =\
-                  other_unpacked[name] =\
-                    frozenset(
-                      imap(itemgetter(1),
-                           frozenset(
-                             imap(lambda x: (id(x), x), # force frozenset to compare on identity
-                                  chain(self_unpacked[name], other_unpacked[name])))))
-            else:
-                return False
-        def pack(owner, refs):
-            return frozenset(imap(lambda (x, y):
-                                    (x, owner.make_refs(*y)),
-                                  refs.iteritems()))
-        self.__refs = pack(self, self_unpacked)
-        other.__refs = pack(other, other_unpacked)
-        # old refs get GC'd and can no longer cause us to explode
-        return True
-
+        return self.__refs == other.__refs
 
 __all__ = ["WeakCompoundKey"]
