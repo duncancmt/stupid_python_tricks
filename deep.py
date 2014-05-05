@@ -1,5 +1,5 @@
-from itertools import izip, count
-from collections import Sequence, Iterable
+from itertools import izip, count, imap
+from collections import Sequence, Iterable, Callable
 
 def deep_foreach(f, l, i=()):
     """Applies f to each atomic element of l and the index of that element"""
@@ -48,4 +48,26 @@ def deep_flatten(l, enumerate=False):
                 yield x
     raise StopIteration
 
-__all__ = ['deep_foreach', 'deep_map', 'deep_setitem', 'deep_getitem', 'deep_flatten']
+
+def shape(tensor):
+    if isinstance(tensor, Sequence):
+        shapes = map(shape, tensor)
+        assert all(imap(lambda s: s == shapes[0], shapes[1:]))
+        return (len(shapes),)+shapes[0]
+    else:
+        return ()
+
+
+def tensor_from_shape(s, fill=None):
+    if len(s) == 0:
+        if isinstance(fill, Callable):
+            return fill()
+        else:
+            return fill
+    else:
+        retval = [ tensor_from_shape(s[1:], fill=fill) for _ in xrange(s[0]) ]
+        assert shape(retval) == tuple(s)
+        return retval
+
+
+__all__ = ['deep_foreach', 'deep_map', 'deep_setitem', 'deep_getitem', 'deep_flatten', 'shape', 'tensor_from_shape']
