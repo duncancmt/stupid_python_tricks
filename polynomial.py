@@ -195,16 +195,20 @@ class Polynomial(PolynomialBase, Iterable):
     __metaclass__ = classmaker()
     def __init__(self, *args):
         terms = [Term(0)]
-        for a in args:
-            if isinstance(a, Term):
+
+        def put_arg(a):
+            if isinstance(a, (Real, basestring, Mapping, tuple)):
+                terms.append(Term(a))
+            elif isinstance(a, Term):
                 terms.append(a)
             elif isinstance(a, Iterable):
-                for x in a:
-                    if not isinstance(x, Term):
-                        raise TypeError("All arguments to Polynomial must be Term instances")
-                    terms.append(x)
+                for a in a:
+                    put_arg(a)
             else:
                 raise TypeError("All arguments to Polynomial must be Term instances")
+
+        for a in args:
+            put_arg(a)
             
         self.terms = self.combine_terms(terms)
 
