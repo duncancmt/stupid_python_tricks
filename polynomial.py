@@ -397,4 +397,34 @@ def horner_form(thing, var=None):
     else:
         raise TypeError("Unknown type %s in horner_form" % repr(type(thing)), thing)
 
-__all__ = ['Term', 'Polynomial', 'horner_form']
+def horner_clean(form):
+    if isinstance(form, Iterable):
+        result = []
+        for op, var in form:
+            result.append((horner_clean(op), var))
+        return tuple(result)
+    elif isinstance(form, Term):
+        assert len(form.powers) == 0
+        return form.coeff
+    else:
+        return form
+
+def horner_evaluate(form, values):
+    result = 0
+    for op, var in form:
+        if isinstance(op, Iterable):
+            coeff = horner_evaluate(op, values)
+        elif isinstance(op, Term):
+            assert len(op.powers) == 0
+            coeff = op.coeff
+        else:
+            coeff = op
+
+        if var is None:
+            assert result == 0
+        else:
+            result *= values[var]
+        result += coeff
+    return result
+
+__all__ = ['Term', 'Polynomial', 'horner_form', 'horner_clean', 'horner_evaluate']
