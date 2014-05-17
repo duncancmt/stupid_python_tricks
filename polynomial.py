@@ -258,9 +258,9 @@ class Polynomial(PolynomialBase, Iterable):
         # with the predicate "If Lead Term of /g/ divides /p/ Then"
 
         P = self
-        Q = Polynomial(Term(0))
-        R = Polynomial(Term(0))
-        Zero = Polynomial(Term(0))
+        Q = Polynomial()
+        R = Polynomial()
+        Zero = Polynomial()
         while P != Zero:
             u = (P.lead_term / other.lead_term)
             if u.proper:
@@ -406,7 +406,7 @@ def horner_form(thing, var=None):
             return horner_form(term, var)
         else:
             max_power = max(imap(lambda term: term.powers.get(var, 0), poly.terms))
-            coeffs = [Polynomial(Term(0))]*(max_power+1)
+            coeffs = [Polynomial()]*(max_power+1)
             for term in poly:
                 power = term.powers.get(var, 0)
                 coeffs[power] += term / Term((var, power))
