@@ -59,21 +59,27 @@ class Term(object):
     def __rmul__(self, other):
         return self * other
     def __mul__(self, other):
-        if isinstance(other, Term):
+        if isinstance(other, Real):
+            return self * type(self)(other)
+        elif isinstance(other, Term):
             return type(self)(self.coeff, other.coeff,
                               self.powers, other.powers)
         else:
             return NotImplemented
 
     def __rtruediv__(self, other):
-        if isinstance(other, Term):
+        if isinstance(other, Real):
+            return type(self)(other) / self
+        elif isinstance(other, Term):
             return type(self)(other.coeff/self.coeff, other.powers,
                               *imap(lambda (var, power): (var, -power),
                                     self.powers.iteritems()))
         else:
             return NotImplemented
     def __truediv__(self, other):
-        if isinstance(other, Term):
+        if isinstance(other, Real):
+            return self / type(self)(other)
+        elif isinstance(other, Term):
             return type(self)(self.coeff/other.coeff, self.powers,
                               *imap(lambda (var, power): (var, -power),
                                     other.powers.iteritems()))
@@ -87,7 +93,9 @@ class Term(object):
     def __radd__(self, other):
         return self + other
     def __add__(self, other):
-        if isinstance(other, Term):
+        if isinstance(other, Real):
+            return self + type(self)(other)
+        elif isinstance(other, Term):
             if self.powers == other.powers:
                 return type(self)(self.coeff + other.coeff, self.powers)
             elif self.coeff == 0:
@@ -219,7 +227,9 @@ class Polynomial(PolynomialBase, Iterable):
     def __rmul__(self, other):
         return self * other
     def __mul__(self, other):
-        if isinstance(other, Term):
+        if isinstance(other, Real):
+            return self * Term(other)
+        elif isinstance(other, Term):
             return type(self)(imap(lambda x: x * other, self.terms))
         elif isinstance(other, Polynomial):
             return type(self)(imap(lambda (x, y): x * y, product(self.terms, other.terms)))
@@ -227,7 +237,9 @@ class Polynomial(PolynomialBase, Iterable):
             return NotImplemented
 
     def __divmod__(self,other):
-        if isinstance(other, Term):
+        if isinstance(other, Real):
+            return divmod(self, Term(other))
+        elif isinstance(other, Term):
             return (type(self)(imap(lambda x: x/other, self.terms)), type(self)(Term(0)))
         elif not isinstance(other, Polynomial):
             return NotImplemented
@@ -273,7 +285,9 @@ class Polynomial(PolynomialBase, Iterable):
     def __radd__(self, other):
         return self + other
     def __add__(self, other):
-        if isinstance(other, Term):
+        if isinstance(other, Real):
+            return self + Term(other)
+        elif isinstance(other, Term):
             return type(self)(self.terms, other)
         elif isinstance(other, Polynomial):
             return type(self)(self.terms, other.terms)
