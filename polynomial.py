@@ -1,10 +1,11 @@
 from __future__ import division
 
+from noconflict import classmaker
 from immutable import ImmutableEnforcerMeta, ImmutableDict
 from itertools import *
 from operator import *
 from functools import cmp_to_key
-from collections import Iterable, Mapping, Sequence
+from collections import Iterable, Mapping
 from numbers import Real
 
 class Term(object):
@@ -12,7 +13,7 @@ class Term(object):
     # TODO: define __slots__
     def __init__(self, *args):
         super(Term, self).__init__()
-        coeff = 1
+        coeff = [1] # stupid python scoping rules
         powers = dict()
 
         def put_var(var, power):
@@ -22,10 +23,9 @@ class Term(object):
                 raise TypeError("Invalid variable power",power)
             powers[var] = powers.get(var, 0) + power
 
-
-        for a in args:
+        def put_arg(a):
             if isinstance(a, Real):
-                coeff *= a
+                coeff[0] *= a # stupid python scoping rules
             elif isinstance(a, basestring):
                 powers[a] = powers.get(a, 0) + 1
             elif isinstance(a, Mapping):
@@ -33,9 +33,15 @@ class Term(object):
                     put_var(var, power)
             elif isinstance(a, tuple):
                 put_var(*a)
+            elif isinstance(a, Iterable):
+                for a in a:
+                    put_arg(a)
             else:
                 raise TypeError("Invalid term element",a)
-        self.coeff = coeff
+
+        for a in args:
+            put_arg(a)
+        self.coeff = coeff[0] # stupid python scoping rules
         if self.coeff == 0:
             powers = dict()
         self.trim_powers(powers)
@@ -53,29 +59,45 @@ class Term(object):
     def __rmul__(self, other):
         return self * other
     def __mul__(self, other):
-        return type(self)(self.coeff, other.coeff,
-                          self.powers, other.powers)
+        if isinstance(other, Term):
+            return type(self)(self.coeff, other.coeff,
+                              self.powers, other.powers)
+        else:
+            return NotImplemented
 
+    def __rtruediv__(self, other):
+        if isinstance(other, Term):
+            return type(self)(other.coeff/self.coeff, other.powers,
+                              *imap(lambda (var, power): (var, -power),
+                                    self.powers.iteritems()))
+        else:
+            return NotImplemented
+    def __truediv__(self, other):
+        if isinstance(other, Term):
+            return type(self)(self.coeff/other.coeff, self.powers,
+                              *imap(lambda (var, power): (var, -power),
+                                    other.powers.iteritems()))
+        else:
+            return NotImplemented
     def __rdiv__(self, other):
-        return type(self)(other.coeff/self.coeff, other.powers,
-                          *imap(lambda (var, power): (var, -power),
-                                self.powers.iteritems()))
+        return other / self
     def __div__(self, other):
-        return type(self)(self.coeff/other.coeff, self.powers,
-                          *imap(lambda (var, power): (var, -power),
-                                other.powers.iteritems()))
+        return self / other
 
     def __radd__(self, other):
         return self + other
     def __add__(self, other):
-        if self.powers == other.powers:
-            return type(self)(self.coeff + other.coeff, self.powers)
-        elif self.coeff == 0:
-            return type(other)(other.coeff, other.powers)
-        elif other.coeff == 0:
-            return type(self)(self.coeff, self.powers)
+        if isinstance(other, Term):
+            if self.powers == other.powers:
+                return type(self)(self.coeff + other.coeff, self.powers)
+            elif self.coeff == 0:
+                return type(other)(other.coeff, other.powers)
+            elif other.coeff == 0:
+                return type(self)(self.coeff, self.powers)
+            else:
+                raise ValueError("Incompatible terms")
         else:
-            raise ValueError("Incompatible terms")
+            return NotImplemented
 
     def __neg__(self):
         return type(self)(-self.coeff, self.powers)
@@ -159,8 +181,10 @@ class Term(object):
     def powers(self, value):
         self.__powers = value
 
-class Polynomial(Sequence):
+class PolynomialBase(object):
     __metaclass__ = ImmutableEnforcerMeta
+class Polynomial(PolynomialBase, Iterable):
+    __metaclass__ = classmaker()
     def __init__(self, *args):
         terms = [Term(0)]
         for a in args:
@@ -195,9 +219,19 @@ class Polynomial(Sequence):
     def __rmul__(self, other):
         return self * other
     def __mul__(self, other):
-        return type(self)(imap(lambda (x, y): x * y, product(self.terms, other.terms)))
+        if isinstance(other, Term):
+            return type(self)(imap(lambda x: x * other, self.terms))
+        elif isinstance(other, Polynomial):
+            return type(self)(imap(lambda (x, y): x * y, product(self.terms, other.terms)))
+        else:
+            return NotImplemented
 
     def __divmod__(self,other):
+        if isinstance(other, Term):
+            return (type(self)(imap(lambda x: x/other, self.terms)), type(self)(Term(0)))
+        elif not isinstance(other, Polynomial):
+            return NotImplemented
+
         # This method for polynomial division is taken from section 7.2 of
         # http://www.cs.tamu.edu/academics/tr/tamu-cs-tr-2004-7-4
         # "Designing a Multivariate Polynomial Class: A Starting Point"
@@ -239,7 +273,12 @@ class Polynomial(Sequence):
     def __radd__(self, other):
         return self + other
     def __add__(self, other):
-        return type(self)(self.terms, other.terms)
+        if isinstance(other, Term):
+            return type(self)(self.terms, other)
+        elif isinstance(other, Polynomial):
+            return type(self)(self.terms, other.terms)
+        else:
+            return NotImplemented
 
     def __neg__(self):
         return type(self)(imap(neg, self.terms))
@@ -262,6 +301,10 @@ class Polynomial(Sequence):
                 return True
         return False
 
+    @property
+    def proper(self):
+        return all(imap(attrgetter('proper'), self.terms))
+
     def __eq__(self, other):
         return self.terms == other.terms
 
@@ -277,8 +320,8 @@ class Polynomial(Sequence):
         return hash(self.terms)
     def __len__(self):
         return len(self.terms)
-    def __getitem__(self, index):
-        return self.terms[index]
+    def __iter__(self):
+        return iter(self.terms)
 
     @property
     def lead_term(self):
