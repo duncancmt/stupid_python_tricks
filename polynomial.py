@@ -349,7 +349,7 @@ def horner_form(thing, var=None):
             else:
                 ops = []
             for var, power in term.powers.iteritems():
-                for _ in power:
+                for _ in xrange(power):
                     ops.append((Term(0), var))
             return ops
     elif var is None:
@@ -384,7 +384,7 @@ def horner_form(thing, var=None):
         if len(poly) == 0:
             return horner_form(Term(0), var)
         if len(poly) == 1:
-            term = poly[0]
+            term = iter(poly).next()
             return horner_form(term, var)
         else:
             max_power = max(imap(lambda term: term.powers.get(var, 0), poly.terms))
