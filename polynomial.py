@@ -1,7 +1,10 @@
+from __future__ import division
+
 from immutable import ImmutableEnforcerMeta, ImmutableDict
 from itertools import *
 from operator import *
-from collections import Iterable, Mapping
+from functools import cmp_to_key
+from collections import Iterable, Mapping, Sequence
 from numbers import Real
 
 class Term(object):
@@ -53,6 +56,15 @@ class Term(object):
         return type(self)(self.coeff, other.coeff,
                           self.powers, other.powers)
 
+    def __rdiv__(self, other):
+        return type(self)(other.coeff/self.coeff, other.powers,
+                          *imap(lambda (var, power): (var, -power),
+                                self.powers.iteritems()))
+    def __div__(self, other):
+        return type(self)(self.coeff/other.coeff, self.powers,
+                          *imap(lambda (var, power): (var, -power),
+                                other.powers.iteritems()))
+
     def __radd__(self, other):
         return self + other
     def __add__(self, other):
@@ -82,6 +94,10 @@ class Term(object):
             retval &= abs(self.powers.get(var, 0)) >= abs(other.powers.get(var, 0))
         return retval
 
+    @property
+    def proper(self):
+        return all(imap(lambda x: x > 0, self.powers.itervalues()))
+
     def compare(self, other, comparison):
         retval = comparison(self.coeff, other.coeff)
         for var in frozenset(chain(self.powers.iterkeys(), other.powers.iterkeys())):
@@ -110,6 +126,8 @@ class Term(object):
             if c:
                 return c
         return 0
+
+    lexicographic_key = property(cmp_to_key(lexicographic_cmp))
 
     def __str__(self):
         def format_power((var, power)):
@@ -141,7 +159,7 @@ class Term(object):
     def powers(self, value):
         self.__powers = value
 
-class Polynomial(object):
+class Polynomial(Sequence):
     __metaclass__ = ImmutableEnforcerMeta
     def __init__(self, *args):
         terms = [Term(0)]
@@ -179,6 +197,45 @@ class Polynomial(object):
     def __mul__(self, other):
         return type(self)(imap(lambda (x, y): x * y, product(self.terms, other.terms)))
 
+    def __divmod__(self,other):
+        # This method for polynomial division is taken from section 7.2 of
+        # http://www.cs.tamu.edu/academics/tr/tamu-cs-tr-2004-7-4
+        # "Designing a Multivariate Polynomial Class: A Starting Point"
+        # Brent M. Dingle, Texas A&M University, 2004
+
+        # The algorithm described in the above paper is actually incorrect,
+        # it replaces the predicate "If Lead Term of /g/ divides Lead Term of /p/ Then"
+        # with the predicate "If Lead Term of /g/ divides /p/ Then"
+
+        P = self
+        Q = Polynomial(Term(0))
+        R = Polynomial(Term(0))
+        Zero = Polynomial(Term(0))
+        while P != Zero:
+            u = (P.lead_term / other.lead_term)
+            if u.proper:
+                U = Polynomial(u)
+                Q += U
+                P -= ( U * other )
+            else:
+                P_l = Polynomial(P.lead_term)
+                R += P_l
+                P -= P_l
+        return (Q, R)
+    def __rdiv__(self, other):
+        return divmod(other, self)[0]
+    def __div__(self, other):
+        return divmod(self, other)[0]
+    def __rfloordiv__(self, other):
+        return divmod(other, self)[0]
+    def __floordiv__(self, other):
+        return divmod(self, other)[0]
+
+    def __rmod__(self, other):
+        return divmod(other, self)[1]
+    def __mod__(self, other):
+        return divmod(self, other)[1]
+
     def __radd__(self, other):
         return self + other
     def __add__(self, other):
@@ -210,16 +267,22 @@ class Polynomial(object):
 
     def __str__(self):
         return " + ".join(imap(str, sorted(self.terms, reverse=True,
-                                           cmp=lambda x,y: x.lexicographic_cmp(y))))
+                                           key=attrgetter('lexicographic_key'))))
 
     def __repr__(self):
         return "Polynomial(%s)" % ", ".join(imap(repr, sorted(self.terms, reverse=True,
-                                                              cmp=lambda x,y: x.lexicographic_cmp(y))))
+                                                              key=attrgetter('lexicographic_key'))))
 
     def __hash__(self):
         return hash(self.terms)
     def __len__(self):
         return len(self.terms)
+    def __getitem__(self, index):
+        return self.terms[index]
+
+    @property
+    def lead_term(self):
+        max(self.terms, key=attrgetter('lexicographic_key'))
 
     @property
     def terms(self):
