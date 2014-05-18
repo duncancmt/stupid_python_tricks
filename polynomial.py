@@ -129,10 +129,15 @@ class Term(object):
         return all(imap(lambda x: x > 0, self.powers.itervalues()))
 
     def compare(self, other, comparison):
-        retval = comparison(self.coeff, other.coeff)
-        for var in frozenset(chain(self.powers.iterkeys(), other.powers.iterkeys())):
-            retval &= comparison(self.powers.get(var, 0), other.powers.get(var, 0))
-        return retval
+        if isinstance(other, Real):
+            other = type(self)(other)
+        elif isinstance(other, Term):
+            retval = comparison(self.coeff, other.coeff)
+            for var in frozenset(chain(self.powers.iterkeys(), other.powers.iterkeys())):
+                retval &= comparison(self.powers.get(var, 0), other.powers.get(var, 0))
+            return retval
+        else:
+            return NotImplemented
     def __lt__(self, other):
         return self.compare(other, lt)
     def __le__(self, other):
@@ -334,7 +339,14 @@ class Polynomial(PolynomialBase, Iterable):
         return all(imap(attrgetter('proper'), self.terms))
 
     def __eq__(self, other):
-        return self.terms == other.terms
+        if isinstance(other, Real):
+            return self == self.term_class(other)
+        elif isinstance(other, Term):
+            return self == type(self)(other)
+        elif isinstance(other, Polynomial):
+            return self.terms == other.terms
+        else:
+            return NotImplemented
 
     def __str__(self):
         return " + ".join(imap(str, sorted(self.terms, reverse=True,
