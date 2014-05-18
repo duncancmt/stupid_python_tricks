@@ -174,7 +174,7 @@ class Term(object):
             return "%s*%s" % (repr(self.coeff), "*".join(imap(format_power, sorted(self.powers.iteritems()))))
 
     def __repr__(self):
-        return "Term(%s,%s)" % (repr(self.coeff), dict(self.powers))
+        return "%s(%s,%s)" % (repr(type(self)), repr(self.coeff), dict(self.powers))
 
     @property
     def coeff(self):
@@ -193,19 +193,21 @@ class PolynomialBase(object):
     __metaclass__ = ImmutableEnforcerMeta
 class Polynomial(PolynomialBase, Iterable):
     __metaclass__ = classmaker()
+
+    term_class = Term
     def __init__(self, *args):
-        terms = [Term(0)]
+        terms = [self.term_class(0)]
 
         def put_arg(a):
             if isinstance(a, (Real, basestring, Mapping, tuple)):
-                terms.append(Term(a))
-            elif isinstance(a, Term):
+                terms.append(self.term_class(a))
+            elif isinstance(a, self.term_class):
                 terms.append(a)
             elif isinstance(a, Iterable):
                 for a in a:
                     put_arg(a)
             else:
-                raise TypeError("All arguments to Polynomial must be Term instances")
+                raise TypeError("All arguments to %s must be %s instances" % (repr(type(self)), repr(self.term_class)))
 
         for a in args:
             put_arg(a)
@@ -232,7 +234,7 @@ class Polynomial(PolynomialBase, Iterable):
         return self * other
     def __mul__(self, other):
         if isinstance(other, Real):
-            return self * Term(other)
+            return self * self.term_class(other)
         elif isinstance(other, Term):
             return type(self)(imap(lambda x: x * other, self.terms))
         elif isinstance(other, Polynomial):
@@ -242,9 +244,9 @@ class Polynomial(PolynomialBase, Iterable):
 
     def __divmod__(self,other):
         if isinstance(other, Real):
-            return divmod(self, Term(other))
+            return divmod(self, self.term_class(other))
         elif isinstance(other, Term):
-            return (type(self)(imap(lambda x: x/other, self.terms)), type(self)(Term(0)))
+            return (type(self)(imap(lambda x: x/other, self.terms)), type(self)(self.term_class(0)))
         elif not isinstance(other, Polynomial):
             return NotImplemented
 
@@ -257,18 +259,19 @@ class Polynomial(PolynomialBase, Iterable):
         # it replaces the predicate "If Lead Term of /g/ divides Lead Term of /p/ Then"
         # with the predicate "If Lead Term of /g/ divides /p/ Then"
 
+        cls = type(self)
         P = self
-        Q = Polynomial()
-        R = Polynomial()
-        Zero = Polynomial()
+        Q = cls()
+        R = cls()
+        Zero = cls()
         while P != Zero:
             u = (P.lead_term / other.lead_term)
             if u.proper:
-                U = Polynomial(u)
+                U = cls(u)
                 Q += U
                 P -= ( U * other )
             else:
-                P_l = Polynomial(P.lead_term)
+                P_l = cls(P.lead_term)
                 R += P_l
                 P -= P_l
         return (Q, R)
@@ -290,7 +293,7 @@ class Polynomial(PolynomialBase, Iterable):
         return self + other
     def __add__(self, other):
         if isinstance(other, Real):
-            return self + Term(other)
+            return self + self.term_class(other)
         elif isinstance(other, Term):
             return type(self)(self.terms, other)
         elif isinstance(other, Polynomial):
@@ -331,8 +334,8 @@ class Polynomial(PolynomialBase, Iterable):
                                            key=attrgetter('lexicographic_key'))))
 
     def __repr__(self):
-        return "Polynomial(%s)" % ", ".join(imap(repr, sorted(self.terms, reverse=True,
-                                                              key=attrgetter('lexicographic_key'))))
+        return "%s(%s)" % (repr(type(self)), ", ".join(imap(repr, sorted(self.terms, reverse=True,
+                                                                         key=attrgetter('lexicographic_key')))))
 
     def __hash__(self):
         return hash(self.terms)
