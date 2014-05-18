@@ -174,7 +174,10 @@ class Term(object):
             return "%s*%s" % (repr(self.coeff), "*".join(imap(format_power, sorted(self.powers.iteritems()))))
 
     def __repr__(self):
-        return "%s(%s,%s)" % (repr(type(self)), repr(self.coeff), dict(self.powers))
+        return "%s.%s(%s,%s)" % (type(self).__module__,
+                                 type(self).__name__,
+                                 repr(self.coeff),
+                                 dict(self.powers))
 
     @property
     def coeff(self):
@@ -207,7 +210,11 @@ class Polynomial(PolynomialBase, Iterable):
                 for a in a:
                     put_arg(a)
             else:
-                raise TypeError("All arguments to %s must be %s instances" % (repr(type(self)), repr(self.term_class)))
+                raise TypeError("All arguments to %s.%s must be %s.%s instances" \
+                                % (type(self).__module__,
+                                   type(self).__name__,
+                                   self.term_class.__module__,
+                                   self.term_class.__name__))
 
         for a in args:
             put_arg(a)
@@ -334,8 +341,10 @@ class Polynomial(PolynomialBase, Iterable):
                                            key=attrgetter('lexicographic_key'))))
 
     def __repr__(self):
-        return "%s(%s)" % (repr(type(self)), ", ".join(imap(repr, sorted(self.terms, reverse=True,
-                                                                         key=attrgetter('lexicographic_key')))))
+        return "%s.%s(%s)" % (type(self).__module__,
+                              type(self).__name__,
+                              ", ".join(imap(repr, sorted(self.terms, reverse=True,
+                                                          key=attrgetter('lexicographic_key')))))
 
     def __hash__(self):
         return hash(self.terms)
