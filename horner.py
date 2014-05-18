@@ -2,6 +2,7 @@ from __future__ import division
 
 from polynomial import *
 from collections import Iterable
+from itertools import imap
 
 def horner_form(thing, var=None):
     if not thing.proper:
