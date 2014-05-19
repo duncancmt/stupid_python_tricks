@@ -1,5 +1,6 @@
 from collections import Mapping
 from noconflict import classmaker
+from copy import copy, deepcopy
 
 # python's built-in abc module sets these attributes on classes
 ok_mutable_names = ['_abc_negative_cache', '_abc_negative_cache_version']
@@ -92,6 +93,10 @@ class ImmutableDict(ImmutableDictBase, Mapping):
         return hash(frozenset(self.__underlying.iteritems()))
     def __repr__(self):
         return "ImmutableDict(%s)" % repr(self.__underlying)
+    def __copy__(self):
+        return type(self)(copy(self.__underlying))
+    def __deepcopy__(self, memo):
+        return type(self)(deepcopy(self.__underlying, memo))
 
 FrozenDict = ImmutableDict
 
