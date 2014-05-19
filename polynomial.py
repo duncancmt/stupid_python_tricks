@@ -12,6 +12,7 @@ from copy import copy,deepcopy
 class Term(object):
     __metaclass__ = ImmutableEnforcerMeta
     # TODO: define __slots__
+    convertable_types = (Real, basestring, Mapping, tuple)
     def __init__(self, *args):
         super(Term, self).__init__()
         coeff = [1] # stupid python scoping rules
@@ -25,7 +26,11 @@ class Term(object):
             powers[var] = powers.get(var, 0) + power
 
         def put_arg(a):
-            if isinstance(a, Real):
+            if isinstance(a, Term):
+                coeff[0] *= a.coeff
+                for (var, power) in a.powers.iteritems():
+                    put_var(var, power)
+            elif isinstance(a, Real):
                 coeff[0] *= a # stupid python scoping rules
             elif isinstance(a, basestring):
                 powers[a] = powers.get(a, 0) + 1
@@ -60,30 +65,29 @@ class Term(object):
     def __rmul__(self, other):
         return self * other
     def __mul__(self, other):
-        if isinstance(other, Real):
+        if isinstance(other, self.convertable_types):
             return self * type(self)(other)
         elif isinstance(other, Term):
-            return type(self)(self.coeff, other.coeff,
-                              self.powers, other.powers)
+            return type(self)(self, other)
         else:
             return NotImplemented
 
     def __rtruediv__(self, other):
-        if isinstance(other, Real):
+        if isinstance(other, self.convertable_types):
             return type(self)(other) / self
         elif isinstance(other, Term):
             return type(self)(other.coeff/self.coeff, other.powers,
-                              *imap(lambda (var, power): (var, -power),
-                                    self.powers.iteritems()))
+                              imap(lambda (var, power): (var, -power),
+                                   self.powers.iteritems()))
         else:
             return NotImplemented
     def __truediv__(self, other):
-        if isinstance(other, Real):
+        if isinstance(other, self.convertable_types):
             return self / type(self)(other)
         elif isinstance(other, Term):
             return type(self)(self.coeff/other.coeff, self.powers,
-                              *imap(lambda (var, power): (var, -power),
-                                    other.powers.iteritems()))
+                              imap(lambda (var, power): (var, -power),
+                                   other.powers.iteritems()))
         else:
             return NotImplemented
     def __rdiv__(self, other):
@@ -94,7 +98,7 @@ class Term(object):
     def __radd__(self, other):
         return self + other
     def __add__(self, other):
-        if isinstance(other, Real):
+        if isinstance(other, self.convertable_types):
             return self + type(self)(other)
         elif isinstance(other, Term):
             if self.powers == other.powers:
@@ -115,6 +119,9 @@ class Term(object):
         return other + -self
     def __sub__(self, other):
         return self + -other
+
+    def __nonzero__(self):
+        return self != 0
     
     def __hash__(self):
         return hash(self.coeff) ^ hash(self.powers)
@@ -130,7 +137,7 @@ class Term(object):
         return all(imap(lambda x: x > 0, self.powers.itervalues()))
 
     def compare(self, other, comparison):
-        if isinstance(other, Real):
+        if isinstance(other, self.convertable_types):
             other = type(self)(other)
         elif isinstance(other, Term):
             retval = comparison(self.coeff, other.coeff)
@@ -153,9 +160,6 @@ class Term(object):
         return self.compare(other, ge)
 
     def lexicographic_cmp(self, other):
-        c = cmp(sum(self.powers.itervalues()), sum(other.powers.itervalues()))
-        if c:
-            return c
         variables = frozenset(chain(self.powers.iterkeys(), other.powers.iterkeys()))
         for var in sorted(variables):
             c = cmp(self.powers.get(var, 0), other.powers.get(var, 0))
@@ -214,7 +218,7 @@ class Polynomial(PolynomialBase, Iterable):
         terms = [self.term_class(0)]
 
         def put_arg(a):
-            if isinstance(a, (Real, basestring, Mapping, tuple)):
+            if isinstance(a, self.term_class.convertable_types):
                 terms.append(self.term_class(a))
             elif isinstance(a, self.term_class):
                 terms.append(a)
@@ -252,7 +256,7 @@ class Polynomial(PolynomialBase, Iterable):
     def __rmul__(self, other):
         return self * other
     def __mul__(self, other):
-        if isinstance(other, Real):
+        if isinstance(other, self.term_class.convertable_types):
             return self * self.term_class(other)
         elif isinstance(other, Term):
             return type(self)(imap(lambda x: x * other, self.terms))
@@ -262,7 +266,7 @@ class Polynomial(PolynomialBase, Iterable):
             return NotImplemented
 
     def __divmod__(self,other):
-        if isinstance(other, Real):
+        if isinstance(other, self.term_class.convertable_types):
             return divmod(self, self.term_class(other))
         elif isinstance(other, Term):
             return (type(self)(imap(lambda x: x/other, self.terms)), type(self)(self.term_class(0)))
@@ -311,7 +315,7 @@ class Polynomial(PolynomialBase, Iterable):
     def __radd__(self, other):
         return self + other
     def __add__(self, other):
-        if isinstance(other, Real):
+        if isinstance(other, self.term_class.convertable_types):
             return self + self.term_class(other)
         elif isinstance(other, Term):
             return type(self)(self.terms, other)
@@ -327,6 +331,9 @@ class Polynomial(PolynomialBase, Iterable):
         return other + -self
     def __sub__(self, other):
         return self + -other
+
+    def __nonzero__(self):
+        return len(self) > 1 or bool(iter(self.terms).next())
 
 
     def subsumes(self, other):
@@ -346,7 +353,7 @@ class Polynomial(PolynomialBase, Iterable):
         return all(imap(attrgetter('proper'), self.terms))
 
     def __eq__(self, other):
-        if isinstance(other, Real):
+        if isinstance(other, self.term_class.convertable_types):
             return self == self.term_class(other)
         elif isinstance(other, Term):
             return self == type(self)(other)
@@ -379,7 +386,36 @@ class Polynomial(PolynomialBase, Iterable):
 
     @property
     def lead_term(self):
-        max(self.terms, key=attrgetter('lexicographic_key'))
+        try:
+            return self.__lead_term
+        except AttributeError:
+            self.__lead_term = max(self.terms, key=attrgetter('lexicographic_key'))
+            return self.lead_term
+    @lead_term.setter
+    def lead_term(self, value):
+        self.__lead_term = value
+
+    @property
+    def vars(self):
+        try:
+            return self.__vars
+        except AttributeError:
+            retval = set()
+            for term in self.terms:
+                for var in term.powers.iterkeys():
+                    retval.add(var)
+            self.__vars = frozenset(retval)
+            return self.vars
+    @vars.setter
+    def vars(self, value):
+        self.__vars = value
+    @property
+    def variables(self):
+        return self.vars
+
+    @property
+    def degree(self):
+        return sum(self.lead_term.powers.itervalues())
 
     @property
     def terms(self):
