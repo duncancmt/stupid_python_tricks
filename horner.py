@@ -18,27 +18,13 @@ def _horner_form_term(term, var, recurse):
         return ops
 
 def _horner_form_search(poly, recurse):
-    vars = set()
-    for term in poly:
-        for var in term.powers.iterkeys():
-            vars.add(var)
-
-    def count_ops(ops):
-        if isinstance(ops, Term):
-            return 1
-        else:
-            retval = 0
-            for op, var in ops:
-                retval += count_ops(op)
-            return retval
-
-    if len(vars) == 0:
+    if len(poly.vars) == 0:
         assert len(poly) == 1
         term = iter(poly).next()
         return recurse(term, None)
     else:
-        return max(imap(lambda var: recurse(poly, var), vars),
-                   key=count_ops)
+        return max(imap(lambda var: recurse(poly, var), poly.vars),
+                   key=horner_count_ops)
 
 def _horner_form_poly(poly, var, recurse):
     if len(poly) == 0:
@@ -89,9 +75,20 @@ def horner_form(thing):
 
     return _horner_cleanup(inner(thing, None))
 
-def horner_evaluate(form, values):
+
+def horner_count_ops(ops):
+    if isinstance(ops, Term):
+        return 1
+    else:
+        retval = 0
+        for op, var in ops:
+            retval += horner_count_ops(ops)
+        return retval
+
+
+def horner_evaluate(ops, values):
     result = 0
-    for op, var in form:
+    for op, var in ops:
         if isinstance(op, Iterable):
             coeff = horner_evaluate(op, values)
         else:
@@ -104,4 +101,4 @@ def horner_evaluate(form, values):
         result += coeff
     return result
 
-__all__ = ['horner_form', 'horner_evaluate']
+__all__ = ['horner_form', 'horner_count_ops', 'horner_evaluate']
