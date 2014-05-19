@@ -7,6 +7,7 @@ from operator import *
 from functools import cmp_to_key
 from collections import Iterable, Mapping
 from numbers import Real
+from copy import copy,deepcopy
 
 class Term(object):
     __metaclass__ = ImmutableEnforcerMeta
@@ -184,6 +185,11 @@ class Term(object):
                                  repr(self.coeff),
                                  dict(self.powers))
 
+    def __copy__(self):
+        return type(self)(self.coeff, self.powers)
+    def __deepcopy__(self, memo):
+        return type(self)(deepcopy(self.coeff, memo), deepcopy(self.powers, memo))
+
     @property
     def coeff(self):
         return self.__coeff
@@ -204,6 +210,7 @@ class Polynomial(PolynomialBase, Iterable):
 
     term_class = Term
     def __init__(self, *args):
+        super(Polynomial, self).__init__()
         terms = [self.term_class(0)]
 
         def put_arg(a):
@@ -364,6 +371,11 @@ class Polynomial(PolynomialBase, Iterable):
         return len(self.terms)
     def __iter__(self):
         return iter(self.terms)
+
+    def __copy__(self):
+        return type(self)(self.__terms)
+    def __deepcopy__(self, memo):
+        return type(self)(deepcopy(self.__terms, memo))
 
     @property
     def lead_term(self):
