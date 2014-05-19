@@ -90,7 +90,11 @@ class ImmutableDict(ImmutableDictBase, Mapping):
     def __len__(self):
         return len(self.__underlying)
     def __hash__(self):
-        return hash(frozenset(self.__underlying.iteritems()))
+        try:
+            return self.__hash
+        except AttributeError:
+            self.__hash = hash(frozenset(self.__underlying.iteritems()))
+            return hash(self)
     def __repr__(self):
         return "ImmutableDict(%s)" % repr(self.__underlying)
     def __copy__(self):
