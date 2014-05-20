@@ -2,7 +2,8 @@ from __future__ import division
 
 from polynomial import *
 from collections import Iterable
-from itertools import imap
+from itertools import imap, izip, ifilter, chain, combinations, product
+from operator import mul
 from numbers import Real
 
 def _horner_form_term(term, var, recurse):
@@ -102,4 +103,102 @@ def horner_evaluate(ops, values):
         result += coeff
     return result
 
-__all__ = ['horner_form', 'horner_count_ops', 'horner_evaluate']
+
+def egcd(a, b):
+    """The Extended Euclidean Algorithm
+    In addition to finding the greatest common divisor (GCD) of the
+    arguments, also find and return the coefficients of the linear
+    combination that results in the GCD.
+    """
+    if a == 0:
+        return (b, 0, 1)
+    else:
+        quot, rem = divmod(b, a)
+        g, y, x = egcd(rem, a)
+        return (g, x - quot * y, y)
+
+def gcd(a, b):
+    return egcd(a, b)[0]
+
+def horner_form_tmp(poly, n_tmps=0):
+    if not isinstance(poly, Polynomial):
+        raise TypeError("Can only put Polynomial instances into Horner form with temporary storage")
+
+    for var in poly.vars:
+        if var.startswith("tmp"):
+            raise ValueError('Variables beginning with "tmp" are reserved for use by horner_form_tmp')
+
+    def get_common(subset):
+        def inner(a, b):
+            retval = gcd(a, b)
+            if retval.degree < 2:
+                raise ArithmeticError
+            else:
+                return retval
+        try:
+            return reduce(inner, subset)
+        except ArithmeticError:
+            return None
+
+
+    possible_tmps = set()
+    for common in ifilter(lambda x: x is not None,
+                          imap(get_common,
+                               chain.from_iterable(imap(lambda i: combinations(poly, i),
+                                                        xrange(2, len(poly)+1))))):
+        if common.degree < 2:
+            continue
+        possible_tmps.add(common)
+
+    def make_tmp():
+        retval = "tmp"+str(make_tmp.counter)
+        make_tmp.counter += 1
+        return retval
+    make_tmp.counter = 0
+
+    def zip_tmps(x):
+        zipped0 = zip(*x)
+        zipped1 = zip(*zipped0[1])
+        return (zipped0[0], zipped1)
+
+    best = (None, None)
+    for x in imap(zip_tmps,
+                  combinations(imap(lambda tmps: (make_tmp(), (tmps, horner_form(tmps))),
+                                    possible_tmps), n_tmps)):
+        names, (tmps, tmps_ops) = x
+        possible_terms = set()
+        for term in poly.terms:
+            possibilities = {term}
+            for names_, tmps_ in imap(lambda x: zip(*x),
+                                      chain.from_iterable(imap(lambda i: combinations(izip(names, tmps), i),
+                                                               xrange(1, len(names)+1)))):
+                common = reduce(mul, tmps_)
+                quot, rem = divmod(term, common)
+                if rem == 0:
+                    quot = reduce(mul, names_, quot)
+                    if not any(imap(lambda x: quot.vars <= x.vars, possibilities)):
+                        to_delete = []
+                        for possibility in possibilities:
+                            if possibility.vars < quot.vars:
+                                to_delete.append(possibility)
+                        for possibility in to_delete:
+                            possibilities.remove(possibility)
+                        possibilities.add(quot)
+            possible_terms.add(frozenset(possibilities))
+
+        tmps_best = (None, None)
+        for terms in product(*possible_terms):
+            ops = horner_form(Polynomial(*terms))
+            count_ops = horner_count_ops(ops)
+            if tmps_best[0] is None or count_ops < tmps_best[0]:
+                tmps_best = (count_ops, ops)
+
+        total_count_ops = tmps_best[0] + sum(imap(horner_count_ops, tmps_ops))
+        # NOTE: doesn't take into consideration that one tmp may be derivable from another
+        if best[0] is None or total_count_ops < best[0]:
+            best_dict = {None:tmps_best[0]}
+            best_dict.update(izip(names, tmps_ops))
+            best = (total_count_ops, best_dict)
+    return best[1]
+
+__all__ = ['horner_form', 'horner_count_ops', 'horner_evaluate', 'horner_form_tmp']
