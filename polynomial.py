@@ -268,6 +268,11 @@ class Term(object):
     def __deepcopy__(self, memo):
         return type(self)(deepcopy(self.coeff, memo), deepcopy(self.powers, memo))
 
+    def __getstate__(self):
+        return (self.coeff, self.powers)
+    def __setstate__(self, state):
+        self.coeff, self.powers = state
+
     @property
     def vars(self):
         try:
@@ -491,6 +496,11 @@ class Polynomial(PolynomialBase, Iterable):
         return type(self)(self.__terms)
     def __deepcopy__(self, memo):
         return type(self)(deepcopy(self.__terms, memo))
+
+    def __getstate__(self):
+        return self.terms
+    def __setstate__(self, state):
+        self.terms = state
 
     @property
     def lead_term(self):
