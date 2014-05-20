@@ -278,7 +278,7 @@ class Term(object):
         try:
             return self.__vars
         except AttributeError:
-            self.__vars = frozenset(self.powers.iterkeys())
+            self.vars = frozenset(self.powers.iterkeys())
             return self.vars
     @vars.setter
     def vars(self, value):
@@ -461,10 +461,6 @@ class Polynomial(PolynomialBase, Iterable):
                 return True
         return False
 
-    @property
-    def proper(self):
-        return all(imap(attrgetter('proper'), self.terms))
-
     def __eq__(self, other):
         if isinstance(other, self.term_class.convertable_types):
             return self == self.term_class(other)
@@ -503,11 +499,22 @@ class Polynomial(PolynomialBase, Iterable):
         self.terms = state
 
     @property
+    def proper(self):
+        try:
+            return self.__proper
+        except AttributeError:
+            self.proper = all(imap(attrgetter('proper'), self.terms))
+            return self.proper
+    @proper.setter
+    def proper(self, value):
+        self.__proper = value
+
+    @property
     def lead_term(self):
         try:
             return self.__lead_term
         except AttributeError:
-            self.__lead_term = max(self.terms, key=attrgetter('lexicographic_key'))
+            self.lead_term = max(self.terms, key=attrgetter('lexicographic_key'))
             return self.lead_term
     @lead_term.setter
     def lead_term(self, value):
@@ -521,7 +528,7 @@ class Polynomial(PolynomialBase, Iterable):
             retval = frozenset()
             for term in self.terms:
                 retval |= term.vars
-            self.__vars = retval
+            self.vars = retval
             return self.vars
     @vars.setter
     def vars(self, value):

@@ -63,22 +63,24 @@ def horner_form_basic(thing):
     chooses variables in lexicographic order and is a purely greedy algorithm."""
     if not thing.proper:
         raise ValueError('Can only put proper Terms and Polynomials into Horner form')
-    var = min(thing.vars) if thing.vars else None
-    if isinstance(thing, Term):
-        return _horner_form_term(thing, var, lambda thing, _: horner_form_basic(thing))
-    elif isinstance(thing, Polynomial):
-        return _horner_form_poly(thing, var, lambda thing, _: horner_form_basic(thing))
-    else:
-        raise TypeError("Unknown type %s in horner_form_basic" % repr(type(thing)), thing)
+    def inner(thing, _):
+        var = min(thing.vars) if thing.vars else None
+        if isinstance(thing, Term):
+            return _horner_form_term(thing, var, inner)
+        elif isinstance(thing, Polynomial):
+            return _horner_form_poly(thing, var, inner)
+        else:
+            raise TypeError("Unknown type %s in horner_form_basic" % repr(type(thing)), thing)
+    return _horner_cleanup(inner(thing, None))
 
 @memoize
 def horner_form(thing):
     """Return the sequence of Horner's method operations that evaluates the argument
     performs search on variables to determine the optimal order to evaluate them
     is otherwise a greedy algorithm"""
+    if not thing.proper:
+        raise ValueError('Can only put proper Terms and Polynomials into Horner form')
     def inner(thing, var):
-        if not thing.proper:
-            raise ValueError('Can only put proper Terms and Polynomials into Horner form')
         if isinstance(thing, Term):
             return _horner_form_term(thing, var, inner)
         elif var is None:
@@ -90,7 +92,6 @@ def horner_form(thing):
             return _horner_form_poly(thing, var, inner)
         else:
             raise TypeError("Unknown type %s in horner_form" % repr(type(thing)), thing)
-
     return _horner_cleanup(inner(thing, None))
 
 
