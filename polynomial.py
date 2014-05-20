@@ -269,6 +269,20 @@ class Term(object):
         return type(self)(deepcopy(self.coeff, memo), deepcopy(self.powers, memo))
 
     @property
+    def vars(self):
+        try:
+            return self.__vars
+        except AttributeError:
+            self.__vars = frozenset(self.powers.iterkeys())
+            return self.vars
+    @vars.setter
+    def vars(self, value):
+        self.__vars = value
+    @property
+    def variables(self):
+        return self.vars
+
+    @property
     def degree(self):
         return sum(self.powers.itervalues())
 
@@ -494,11 +508,10 @@ class Polynomial(PolynomialBase, Iterable):
         try:
             return self.__vars
         except AttributeError:
-            retval = set()
+            retval = frozenset()
             for term in self.terms:
-                for var in term.powers.iterkeys():
-                    retval.add(var)
-            self.__vars = frozenset(retval)
+                retval |= term.vars
+            self.__vars = retval
             return self.vars
     @vars.setter
     def vars(self, value):
