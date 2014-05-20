@@ -95,6 +95,80 @@ class Term(object):
     def __div__(self, other):
         return self / other
 
+    def __rfloordiv__(self, other):
+        if isinstance(other, self.convertable_types):
+            return type(self)(other) // self
+        elif isinstance(other, Term):
+            coeff = other.coeff // self.coeff
+            powers = dict(other.powers)
+            for var, power in self.powers.iteritems():
+                powers[var] = powers.get(var, 0) - power
+            to_delete = []
+            for var, power in powers.iteritems():
+                if power <= 0:
+                    to_delete.append(var)
+            for var in to_delete:
+                del powers[var]
+            return type(self)(coeff, powers)
+        else:
+            return NotImplemented
+    def __floordiv__(self, other):
+        if isinstance(other, self.convertable_types):
+            return self // type(self)(other)
+        elif isinstance(other, Term):
+            coeff = self.coeff//other.coeff
+            powers = dict(self.powers)
+            for var, power in other.powers.iteritems():
+                powers[var] = powers.get(var, 0) - power
+            to_delete = []
+            for var, power in powers.iteritems():
+                if power <= 0:
+                    to_delete.append(var)
+            for var in to_delete:
+                del powers[var]
+            return type(self)(coeff, powers)
+        else:
+            return NotImplemented
+
+    def __rdivmod__(self, other):
+        if isinstance(other, self.convertable_types):
+            return divmod(type(self)(other), self)
+        elif isinstance(other, Term):
+            q_coeff, r_coeff = divmod(other.coeff, self.coeff)
+            powers = dict(other.powers)
+            for var, power in self.powers.iteritems():
+                powers[var] = powers.get(var, 0) - power
+            q_powers = dict()
+            r_powers = dict()
+            for var, power in powers.iteritems():
+                if power < 0:
+                    r_powers[var] = -power
+                elif power > 0:
+                    q_powers[var] = power
+            return (type(self)(q_coeff, q_powers),
+                    type(self)(r_coeff, r_powers))
+        else:
+            return NotImplemented
+    def __divmod__(self, other):
+        if isinstance(other, self.convertable_types):
+            return divmod(self, type(self)(other))
+        elif isinstance(other, Term):
+            q_coeff, r_coeff = divmod(self.coeff, other.coeff)
+            powers = dict(self.powers)
+            for var, power in other.powers.iteritems():
+                powers[var] = powers.get(var, 0) - power
+            q_powers = dict()
+            r_powers = dict()
+            for var, power in powers.iteritems():
+                if power < 0:
+                    r_powers[var] = -power
+                elif power > 0:
+                    q_powers[var] = power
+            return (type(self)(q_coeff, q_powers),
+                    type(self)(r_coeff, r_powers))
+        else:
+            return NotImplemented
+
     def __radd__(self, other):
         return self + other
     def __add__(self, other):
@@ -108,7 +182,7 @@ class Term(object):
             elif other.coeff == 0:
                 return type(self)(self.coeff, self.powers)
             else:
-                raise ValueError("Incompatible terms")
+                raise ArithmeticError("Incompatible terms")
         else:
             return NotImplemented
 
@@ -138,7 +212,7 @@ class Term(object):
 
     def compare(self, other, comparison):
         if isinstance(other, self.convertable_types):
-            other = type(self)(other)
+            return self == type(self)(other)
         elif isinstance(other, Term):
             retval = comparison(self.coeff, other.coeff)
             for var in frozenset(chain(self.powers.iterkeys(), other.powers.iterkeys())):
@@ -195,6 +269,10 @@ class Term(object):
         return type(self)(deepcopy(self.coeff, memo), deepcopy(self.powers, memo))
 
     @property
+    def degree(self):
+        return sum(self.powers.itervalues())
+
+    @property
     def coeff(self):
         return self.__coeff
     @coeff.setter
@@ -247,7 +325,7 @@ class Polynomial(PolynomialBase, Iterable):
                     t += new_terms[i]
                     del new_terms[i]
                     break
-                except ValueError:
+                except ArithmeticError:
                     pass
             new_terms.append(t)
         return(frozenset(new_terms))
@@ -265,13 +343,10 @@ class Polynomial(PolynomialBase, Iterable):
         else:
             return NotImplemented
 
-    def __divmod__(self,other):
-        if isinstance(other, self.term_class.convertable_types):
-            return divmod(self, self.term_class(other))
-        elif isinstance(other, Term):
-            return (type(self)(imap(lambda x: x/other, self.terms)), type(self)(self.term_class(0)))
-        elif not isinstance(other, Polynomial):
-            return NotImplemented
+    @classmethod
+    def divmod_inner(cls, num, denom):
+        assert isinstance(num, cls)
+        assert isinstance(dneom, cls)
 
         # This method for polynomial division is taken from section 7.2 of
         # http://www.cs.tamu.edu/academics/tr/tamu-cs-tr-2004-7-4
@@ -282,22 +357,41 @@ class Polynomial(PolynomialBase, Iterable):
         # it replaces the predicate "If Lead Term of /g/ divides Lead Term of /p/ Then"
         # with the predicate "If Lead Term of /g/ divides /p/ Then"
 
-        cls = type(self)
-        P = self
+        P = num
         Q = cls()
         R = cls()
         Zero = cls()
         while P != Zero:
-            u = (P.lead_term / other.lead_term)
+            u = (P.lead_term / denom.lead_term) # true division
             if u.proper:
                 U = cls(u)
                 Q += U
-                P -= ( U * other )
+                P -= ( U * denom )
             else:
                 P_l = cls(P.lead_term)
                 R += P_l
                 P -= P_l
         return (Q, R)
+
+    def __rdivmod__(self,other):
+        if isinstance(other, self.term_class.convertable_types):
+            return divmod(self.term_class(other), self)
+        elif isinstance(other, Term):
+            return (type(self)(imap(lambda x: other/x, self.terms)), type(self)(self.term_class(0)))
+        elif not isinstance(other, Polynomial):
+            return self.divmod_inner(other, self)
+        else:
+            return NotImplemented
+    def __divmod__(self,other):
+        if isinstance(other, self.term_class.convertable_types):
+            return divmod(self, self.term_class(other))
+        elif isinstance(other, Term):
+            return (type(self)(imap(lambda x: x/other, self.terms)), type(self)(self.term_class(0)))
+        elif not isinstance(other, Polynomial):
+            return self.divmod_inner(self, other)
+        else:
+            return NotImplemented
+
     def __rdiv__(self, other):
         return divmod(other, self)[0]
     def __div__(self, other):
@@ -415,7 +509,7 @@ class Polynomial(PolynomialBase, Iterable):
 
     @property
     def degree(self):
-        return sum(self.lead_term.powers.itervalues())
+        return max(imap(methodcaller('degree'), self.terms))
 
     @property
     def terms(self):
