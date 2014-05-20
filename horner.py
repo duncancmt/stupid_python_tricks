@@ -55,6 +55,18 @@ def _horner_cleanup(form):
     else:
         return form
 
+def horner_form_basic(thing):
+    """Return the sequence of Horner's method operations that evaluates the argument
+    chooses variables in lexicographic order and is a purely greedy algorithm."""
+    if not thing.proper:
+        raise ValueError('Can only put proper Terms and Polynomials into Horner form')
+    var = min(thing.vars) if thing.vars else None
+    if isinstance(thing, Term):
+        return _horner_form_term(thing, var, lambda thing, _: horner_form_basic(thing))
+    elif isinstance(thing, Polynomial):
+        return _horner_form_poly(thing, var, lambda thing, _: horner_form_basic(thing))
+    else:
+        raise TypeError("Unknown type %s in horner_form_basic" % repr(type(thing)), thing)
 
 def horner_form(thing):
     """Return the sequence of Horner's method operations that evaluates the argument
@@ -201,4 +213,4 @@ def horner_form_tmp(poly, n_tmps=0):
             best = (total_count_ops, best_dict)
     return best[1]
 
-__all__ = ['horner_form', 'horner_count_ops', 'horner_evaluate', 'horner_form_tmp']
+__all__ = ['horner_form_basic', 'horner_form', 'horner_form_tmp', 'horner_count_ops', 'horner_evaluate']
