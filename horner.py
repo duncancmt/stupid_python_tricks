@@ -199,10 +199,10 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None):
                 if rem == 0:
                     quot = reduce(mul, names_, quot)
                     monitor("alternative", quot)
-                    if not any(imap(lambda x: quot.vars <= x.vars, possibilities)):
+                    if not any(imap(lambda x: quot.vars - poly.vars <= x.vars - poly.vars, possibilities)):
                         to_delete = []
                         for possibility in possibilities:
-                            if possibility.vars < quot.vars:
+                            if possibility.vars - poly.vars <= quot.vars - poly.vars:
                                 to_delete.append(possibility)
                         for possibility in to_delete:
                             possibilities.remove(possibility)
