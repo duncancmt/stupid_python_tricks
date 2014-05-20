@@ -132,7 +132,7 @@ def egcd(a, b):
 def gcd(a, b):
     return egcd(a, b)[0]
 
-def horner_form_tmp(poly, n_tmps=0):
+def horner_form_tmp(poly, n_tmps=0, monitor=lambda *args: None):
     if not isinstance(poly, Polynomial):
         raise TypeError("Can only put Polynomial instances into Horner form with temporary storage")
 
@@ -160,6 +160,7 @@ def horner_form_tmp(poly, n_tmps=0):
                                                         xrange(2, len(poly)+1))))):
         if common.degree < 2:
             continue
+        monitor("common", common)
         possible_tmps.add(common)
 
     def make_tmp():
@@ -174,12 +175,13 @@ def horner_form_tmp(poly, n_tmps=0):
         return (zipped0[0], zipped1)
 
     best = (None, None)
-    for x in imap(zip_tmps,
-                  combinations(imap(lambda tmps: (make_tmp(), (tmps, horner_form(tmps))),
-                                    possible_tmps), n_tmps)):
-        names, (tmps, tmps_ops) = x
+    for names, (tmps, tmps_ops) in imap(zip_tmps,
+                                        combinations(imap(lambda tmps: (make_tmp(), (tmps, horner_form(tmps))),
+                                                          possible_tmps), n_tmps)):
+        monitor("get_possible_terms", tmps)
         possible_terms = set()
         for term in poly.terms:
+            monitor("get_term_alternatives", term)
             possibilities = {term}
             for names_, tmps_ in imap(lambda x: zip(*x),
                                       chain.from_iterable(imap(lambda i: combinations(izip(names, tmps), i),
@@ -188,6 +190,7 @@ def horner_form_tmp(poly, n_tmps=0):
                 quot, rem = divmod(term, common)
                 if rem == 0:
                     quot = reduce(mul, names_, quot)
+                    monitor("alternative", quot)
                     if not any(imap(lambda x: quot.vars <= x.vars, possibilities)):
                         to_delete = []
                         for possibility in possibilities:
@@ -196,16 +199,20 @@ def horner_form_tmp(poly, n_tmps=0):
                         for possibility in to_delete:
                             possibilities.remove(possibility)
                         possibilities.add(quot)
+            monitor("all_term_alternatives", possibilities)
             possible_terms.add(frozenset(possibilities))
+        monitor("all_possible_terms", possible_terms)
 
         tmps_best = (None, None)
         for terms in product(*possible_terms):
             ops = horner_form(Polynomial(*terms))
             count_ops = horner_count_ops(ops)
+            monitor("evaluate_term_alternatives", terms, count_ops, tmps_best[0])
             if tmps_best[0] is None or count_ops < tmps_best[0]:
                 tmps_best = (count_ops, ops)
 
         total_count_ops = tmps_best[0] + sum(imap(horner_count_ops, tmps_ops))
+        monitor("evaluate_tmp_alternatives", tmps, total_count_ops, best[0])
         # NOTE: doesn't take into consideration that one tmp may be derivable from another
         if best[0] is None or total_count_ops < best[0]:
             best_dict = {None:tmps_best[0]}
