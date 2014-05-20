@@ -3,6 +3,7 @@ from __future__ import division
 from polynomial import *
 from collections import Iterable
 from itertools import imap
+from numbers import Real
 
 def _horner_form_term(term, var, recurse):
     if len(term.powers) == 0:
@@ -77,13 +78,13 @@ def horner_form(thing):
 
 
 def horner_count_ops(ops):
-    if isinstance(ops, Term):
-        return 1
-    else:
+    if isinstance(ops, Iterable):
         retval = 0
         for op, var in ops:
-            retval += horner_count_ops(ops)
+            retval += horner_count_ops(op)
         return retval
+    else:
+        return 1
 
 
 def horner_evaluate(ops, values):
