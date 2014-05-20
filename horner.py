@@ -132,13 +132,16 @@ def egcd(a, b):
 def gcd(a, b):
     return egcd(a, b)[0]
 
-def horner_form_tmp(poly, n_tmps=0, monitor=lambda *args: None):
+def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None):
     if not isinstance(poly, Polynomial):
         raise TypeError("Can only put Polynomial instances into Horner form with temporary storage")
 
     for var in poly.vars:
         if var.startswith("tmp"):
             raise ValueError('Variables beginning with "tmp" are reserved for use by horner_form_tmp')
+
+    if n_tmps is None:
+        n_tmps = len(poly)
 
     def get_common(subset):
         def inner(a, b):
