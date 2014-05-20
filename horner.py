@@ -73,6 +73,7 @@ def horner_form_basic(thing):
             raise TypeError("Unknown type %s in horner_form_basic" % repr(type(thing)), thing)
     return _horner_cleanup(inner(thing, None))
 
+_horner_form_memo = {}
 def horner_form(thing):
     """Return the sequence of Horner's method operations that evaluates the argument
     performs search on variables to determine the optimal order to evaluate them
@@ -80,7 +81,7 @@ def horner_form(thing):
     if not thing.proper:
         raise ValueError('Can only put proper Terms and Polynomials into Horner form')
 
-    @memoize
+    @memoize(_horner_form_memo)
     def inner(thing, var):
         if isinstance(thing, Term):
             return _horner_form_term(thing, var, inner)
