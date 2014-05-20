@@ -6,6 +6,8 @@ from itertools import imap, izip, ifilter, chain, combinations, product
 from operator import mul
 from numbers import Real
 
+from memoize import memoize
+
 def _horner_form_term(term, var, recurse):
     if len(term.powers) == 0:
         return [(term, var)]
@@ -55,6 +57,7 @@ def _horner_cleanup(form):
     else:
         return form
 
+@memoize
 def horner_form_basic(thing):
     """Return the sequence of Horner's method operations that evaluates the argument
     chooses variables in lexicographic order and is a purely greedy algorithm."""
@@ -68,6 +71,7 @@ def horner_form_basic(thing):
     else:
         raise TypeError("Unknown type %s in horner_form_basic" % repr(type(thing)), thing)
 
+@memoize
 def horner_form(thing):
     """Return the sequence of Horner's method operations that evaluates the argument
     performs search on variables to determine the optimal order to evaluate them
