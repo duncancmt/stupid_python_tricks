@@ -2,24 +2,55 @@ import decorator
 import warnings
 from weakref import WeakKeyDictionary
 from weakcompoundkey import WeakCompoundKey
+from collections import MutableMapping, Callable
 
-def decorator_apply(dec, func):
+def decorator_apply(dec, func, args, kwargs):
     """
     Decorate a function by preserving the signature even if dec
     is not a signature-preserving decorator.
     """
     return decorator.FunctionMaker.create(
         func, 'return decorated(%(signature)s)',
-        dict(decorated=dec(func)), __wrapped__=func)
+        dict(decorated=dec(func, *args, **kwargs)), __wrapped__=func)
 
 @decorator.decorator
-def decorator_decorator(dec, func):
+def decorator_decorator(dec, func, *args, **kwargs):
     """Decorator for decorators"""
-    return decorator_apply(dec, func)
+    if isinstance(func, Callable):
+        return decorator_apply(dec, func, args, kwargs)
+    else:
+        return dec(func, *args, **kwargs)
 
 @decorator_decorator
-def memoize(f):
-    cache = {}
+def memoize(f, cache=None):
+    """memoize memoizes its argument.
+    Argument references are strongly held, which can lead to memory leaks.
+    If you are concerned about this, use the lower-performance weakmemoize.
+    memoize is intended for use as a decorator. e.g.
+
+    @memoize
+    def foo(*args, **kwargs):
+        ...
+
+    However, it has an alternate invocation that lets you control how the
+    memoization dictionary is built.
+
+    memo_dict = {}
+    @memoize(memo_dict)
+    def foo(*args, **kwargs):
+        ...
+
+    In this case, memoize will use memo_dict to store memoization information."""
+    if isinstance(f, MutableMapping):
+        assert cache is None
+        @decorator_decorator
+        def memoize_with_cache(new_f):
+            return memoize(new_f, cache=f)
+        return memoize_with_cache
+
+    if cache is None:
+        cache = {}
+
     def memoized(*args, **kwargs):
         try:
             hash(args)
@@ -43,8 +74,38 @@ def memoize(f):
     return memoized
 
 @decorator_decorator
-def weakmemoize(f):
-    cache = WeakKeyDictionary()
+def weakmemoize(f, cache=None):
+    """weakmemoize memoizes its argument.
+    Argument references are weakly held to prevent memory leaks.
+    There is a substantial performance penalty to how weakmemoize holds its references.
+    If you are concerned about this, use the higher-performance memoize.
+    weakmemoize is intended for use as a decorator. e.g.
+
+    @weakmemoize
+    def foo(*args, **kwargs):
+        ...
+
+    However, it has an alternate invocation that lets you control how the
+    memoization dictionary is built.
+
+    memo_dict = WeakKeyDictionary()
+    @weakmemoize(memo_dict)
+    def foo(*args, **kwargs):
+        ...
+
+    In this case, weakmemoize will use memo_dict to store memoization information."""
+    if isinstance(f, WeakKeyDictionary): # stupid python2 old-style classes
+                                         # WeakKeyDictionary instances are not instances
+                                         # of MutableMapping, for some asinie reason
+        assert cache is None
+        @decorator_decorator
+        def weakmemoize_with_cache(new_f):
+            return weakmemoize(new_f, cache=f)
+        return weakmemoize_with_cache
+
+    if cache is None:
+        cache = WeakKeyDictionary()
+
     def weakmemoized(*args, **kwargs):
         try:
             key = WeakCompoundKey(*args, **kwargs)
