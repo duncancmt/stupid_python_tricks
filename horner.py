@@ -25,7 +25,7 @@ def _horner_form_search(poly, recurse):
         term = iter(poly).next()
         return recurse(term, None)
     else:
-        return max(imap(lambda var: recurse(poly, var), poly.vars),
+        return min(imap(lambda var: recurse(poly, var), poly.vars),
                    key=horner_count_ops)
 
 def _horner_form_poly(poly, var, recurse):
@@ -62,7 +62,7 @@ def horner_form(thing):
     is otherwise a greedy algorithm"""
     def inner(thing, var):
         if not thing.proper:
-            raise ValueError('Can only put proper Terms and Polynomials into horner form')
+            raise ValueError('Can only put proper Terms and Polynomials into Horner form')
         if isinstance(thing, Term):
             return _horner_form_term(thing, var, inner)
         elif var is None:
