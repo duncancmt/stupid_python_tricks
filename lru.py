@@ -1,6 +1,7 @@
 from collections import MutableMapping
 from threading import RLock
 from itertools import imap
+from weakref import ref
 
 class LRUDict(MutableMapping):
     """Adapted from ActiveState recipe 578078"""
@@ -18,11 +19,11 @@ class LRUDict(MutableMapping):
         self.cache = {}
         self.cache.update(*args, **kwargs)
 
-    def make_link(key, value):
+    def _make_link(self, key, value):
         sentinel = self.sentinel
         return [ sentinel, sentinel, key, value ]
 
-    def mark_recent_use(self, link):
+    def _mark_recent_use(self, link):
         PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         with self.lock:
             root = self.root
@@ -39,17 +40,17 @@ class LRUDict(MutableMapping):
         with self.lock:
             try:
                 link = self.cache[key]
-                self.mark_recent_use(link)
+                self._mark_recent_use(link)
                 self.hits += 1
                 return link[VALUE]
             except KeyError:
                 self.misses += 1
                 raise
 
-    def add_new(self, link):
+    def _add_new(self, link):
         PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         with self.lock:
-            self.cache[key] = link
+            self.cache[link[KEY]] = link
             root = self.root
             last = root[PREV]
             last[NEXT] = link
@@ -82,15 +83,15 @@ class LRUDict(MutableMapping):
                 if length == maxsize:
                     self.replace_oldest(key, value)
                 elif length < maxsize:
-                    link = self.make_link(key, value)
-                    self.add_new(link)
+                    link = self._make_link(key, value)
+                    self._add_new(link)
                 else:
                     raise RuntimeError("LRUDict size exceeds maximum size")
             else:
                 link[VALUE] = value
-                self.mark_recent_use(link)
+                self._mark_recent_use(link)
 
-    def remove_link(self, link):
+    def _remove_link(self, link):
         PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         with self.lock:
             prev = link[PREV]
@@ -102,7 +103,7 @@ class LRUDict(MutableMapping):
         with self.lock:
             cache = self.cache
             link = cache[key]
-            self.remove_link(link)
+            self._remove_link(link)
             del cache[key]
 
     def remove_oldest(self):
@@ -136,8 +137,106 @@ class LRUDict(MutableMapping):
         PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         return "%s.%s(%s)" % (type(self).__module__,
                               type(self).__name__,
-                              repr(dict(imap(lambda (k, v): (k, v[VALUE]),
-                                             self.cache.iteritems()))))
+                              repr(dict(self.iteritems())))
 
 
-__all__ = ["LRUDict"]
+class IterationGuard(object):
+    """
+    This class taken directly from the CPython _weakrefset.py module.
+    Since _weakrefset.py is not part of the standard library, we cannot
+    rely on it being available.
+
+    This context manager registers itself in the current iterators of the
+    weak container, such as to delay all removals until the context manager
+    exits.
+    This technique should be relatively thread-safe (since sets are)."""
+
+    def __init__(self, weakcontainer):
+        # Don't create cycles
+        self.weakcontainer = ref(weakcontainer)
+
+    def __enter__(self):
+        w = self.weakcontainer()
+        if w is not None:
+            w._iterating.add(self)
+        return self
+
+    def __exit__(self, e, t, b):
+        w = self.weakcontainer()
+        if w is not None:
+            s = w._iterating
+            s.remove(self)
+            if not s:
+                w._commit_removals()
+
+
+class WeakKeyLRUDict(LRUDict):
+    """A LRUDict that holds its references to its keys weakly.
+    Patterned after weakref.WeakKeyDictionary, and much code taken from there."""
+    __slots__ = LRUDict.__slots__ + ["_remove", "_pending_removals", "_iterating"]
+    def __init__(self, *args, **kwargs):
+        super(WeakKeyLRUDict, self).__init__(*args, **kwargs)
+        def remove(k, selfref=ref(self)):
+            self = selfref()
+            if self is not None:
+                if self._iterating:
+                    self._pending_removals.append(k)
+                else:
+                    try:
+                        sup = super(WeakKeyLRUDict, self)
+                        sup.__delitem__(k)
+                    except KeyError:
+                        pass
+        self._remove = remove
+        self._pending_removals = []
+        self._iterating = set()
+
+    def _commit_removals(self):
+        # NOTE: We don't need to call this method before mutating the dict,
+        # because a dead weakref never compares equal to a live weakref,
+        # even if they happened to refer to equal objects.
+        # However, it means keys may already have been removed.
+        l = self._pending_removals
+        while l:
+            try:
+                del self[l.pop()]
+            except KeyError:
+                pass
+
+    def __getitem__(self, key):
+        sup = super(WeakKeyLRUDict, self)
+        return sup.__getitem__(ref(key))
+
+    def _make_link(self, key, value):
+        key = ref(key, self._remove)
+        sup = super(WeakKeyLRUDict, self)
+        return sup._make_link(key, value)
+
+    def replace_oldest(self, key, value):
+        key = ref(key, self._remove)
+        sup = super(WeakKeyLRUDict, self)
+        return sup.replace_oldest(key, value)
+
+    def __delitem__(self, key):
+        key = ref(key)
+        sup = super(WeakKeyLRUDict, self)
+        sup.__delitem__(key)
+
+    def __iter__(self):
+        sup = super(WeakKeyLRUDict, self)
+        with IterationGuard(self):
+            for wr in sup.__iter__():
+                obj = wr()
+                if obj is not None:
+                    yield obj
+
+    def iterkeyrefs(self):
+        sup = super(WeakKeyLRUDict, self)
+        with IterationGuard(self):
+            for wr in sup.__iter__():
+                yield wr
+
+    def keyrefs(self):
+        return list(self.iterkeyrefs())
+
+__all__ = ["LRUDict", "WeakKeyLRUDict"]
