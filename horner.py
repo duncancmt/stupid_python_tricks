@@ -57,8 +57,7 @@ def _horner_cleanup(form):
     else:
         return form
 
-@memoize
-def horner_form_basic(thing):
+def horner_form_basic(thing, memo=None):
     """Return the sequence of Horner's method operations that evaluates the argument
     chooses variables in lexicographic order and is a purely greedy algorithm."""
     if not thing.proper:
@@ -71,17 +70,17 @@ def horner_form_basic(thing):
             return _horner_form_poly(thing, var, inner)
         else:
             raise TypeError("Unknown type %s in horner_form_basic" % repr(type(thing)), thing)
+    if memo is not None:
+        inner = memoize(memo)(inner)
     return _horner_cleanup(inner(thing, None))
 
-_horner_form_memo = {}
-def horner_form(thing):
+def horner_form(thing, memo=None):
     """Return the sequence of Horner's method operations that evaluates the argument
     performs search on variables to determine the optimal order to evaluate them
     is otherwise a greedy algorithm"""
     if not thing.proper:
         raise ValueError('Can only put proper Terms and Polynomials into Horner form')
 
-    @memoize(_horner_form_memo)
     def inner(thing, var):
         if isinstance(thing, Term):
             return _horner_form_term(thing, var, inner)
@@ -94,6 +93,8 @@ def horner_form(thing):
             return _horner_form_poly(thing, var, inner)
         else:
             raise TypeError("Unknown type %s in horner_form" % repr(type(thing)), thing)
+    if memo is not None:
+        inner = memoize(memo)(inner)
     return _horner_cleanup(inner(thing, None))
 
 
@@ -139,7 +140,7 @@ def egcd(a, b):
 def gcd(a, b):
     return egcd(a, b)[0]
 
-def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None):
+def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None, memo=None):
     if not isinstance(poly, Polynomial):
         raise TypeError("Can only put Polynomial instances into Horner form with temporary storage")
 
@@ -186,7 +187,7 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None):
 
     best = (None, None)
     for names, (tmps, tmps_ops) in imap(zip_tmps,
-                                        combinations(imap(lambda tmps: (make_tmp(), (tmps, horner_form(tmps))),
+                                        combinations(imap(lambda tmps: (make_tmp(), (tmps, horner_form(tmps, memo))),
                                                           possible_tmps), n_tmps)):
         monitor("get_possible_terms", tmps)
         possible_terms = set()
@@ -215,7 +216,7 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None):
 
         tmps_best = (None, None)
         for terms in product(*possible_terms):
-            ops = horner_form(Polynomial(*terms))
+            ops = horner_form(Polynomial(*terms), memo)
             count_ops = horner_count_ops(ops)
             monitor("evaluate_term_alternatives", terms, count_ops, tmps_best[0])
             if tmps_best[0] is None or count_ops < tmps_best[0]:
