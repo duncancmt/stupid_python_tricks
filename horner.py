@@ -1,7 +1,7 @@
 from __future__ import division
 
 from polynomial import *
-from collections import Iterable
+from collections import Iterable, Mapping
 from itertools import imap, izip, ifilter, chain, combinations, product
 from operator import mul
 from numbers import Real
@@ -109,6 +109,13 @@ def horner_count_ops(ops):
 
 
 def horner_evaluate(ops, values):
+    # TODO: doesn't allow tmps to reference each other
+    if isinstance(ops, Mapping):
+        values = dict(values)
+        for tmp, tmp_ops in ops.iteritems():
+            if tmp is not None:
+                values[tmp] = horner_evaluate(tmp_ops, values)
+        return horner_evaluate(ops[None], values)
     result = 0
     for op, var in ops:
         if isinstance(op, Iterable):
@@ -226,7 +233,7 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None, memo=None):
         monitor("evaluate_tmp_alternatives", tmps, total_count_ops, best[0])
         # NOTE: doesn't take into consideration that one tmp may be derivable from another
         if best[0] is None or total_count_ops < best[0]:
-            best_dict = {None:tmps_best[0]}
+            best_dict = {None:tmps_best[1]}
             best_dict.update(izip(names, tmps_ops))
             best = (total_count_ops, best_dict)
     return best[1]
