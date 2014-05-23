@@ -143,9 +143,6 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None, memo=None):
         if var.startswith("tmp"):
             raise ValueError('Variables beginning with "tmp" are reserved for use by horner_form_tmp')
 
-    if n_tmps is None:
-        n_tmps = len(poly)
-
     def get_common(subset):
         def inner(a, b):
             retval = gcd(a, b)
@@ -158,7 +155,6 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None, memo=None):
         except ArithmeticError:
             return None
 
-
     possible_tmps = set()
     for common in ifilter(lambda x: x is not None,
                           imap(lambda subset: get_common(imap(Polynomial, subset)),
@@ -168,6 +164,10 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None, memo=None):
             continue
         monitor("common", common)
         possible_tmps.add(common)
+    monitor("possible_tmps", possible_tmps)
+
+    if n_tmps is None:
+        n_tmps = len(possible_tmps)
 
     def make_tmp():
         retval = "tmp"+str(make_tmp.counter)
@@ -213,12 +213,14 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None, memo=None):
         for terms in product(*possible_terms):
             ops = horner_form(Polynomial(*terms), memo)
             count_ops = horner_count_ops(ops)
-            monitor("evaluate_term_alternatives", terms, count_ops, tmps_best[0])
+            monitor("evaluate_term_alternatives", terms, count_ops, tmps_best[0],
+                    len(memo) if memo is not None else None)
             if tmps_best[0] is None or count_ops < tmps_best[0]:
                 tmps_best = (count_ops, ops)
 
         total_count_ops = tmps_best[0] + sum(imap(horner_count_ops, tmps_ops))
-        monitor("evaluate_tmp_alternatives", tmps, total_count_ops, best[0])
+        monitor("evaluate_tmp_alternatives", tmps, total_count_ops, best[0],
+                len(memo) if memo is not None else None)
         # NOTE: doesn't take into consideration that one tmp may be derivable from another
         if best[0] is None or total_count_ops < best[0]:
             best_dict = {None:tmps_best[1]}
