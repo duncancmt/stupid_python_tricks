@@ -3,7 +3,7 @@ from __future__ import division
 from polynomial import *
 from collections import Iterable, Mapping
 from itertools import imap, izip, ifilter, chain, combinations, product
-from operator import mul
+from operator import mul, attrgetter
 from numbers import Real
 
 from memoize import memoize
@@ -146,7 +146,7 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None, memo=None):
     def get_common(subset):
         def inner(a, b):
             retval = gcd(a, b)
-            if retval.degree < 2:
+            if sum(imap(attrgetter('degree'), retval)) < 2:
                 raise ArithmeticError
             else:
                 return retval
@@ -160,8 +160,6 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None, memo=None):
                           imap(lambda subset: get_common(imap(Polynomial, subset)),
                                chain.from_iterable(imap(lambda i: combinations(poly, i),
                                                         xrange(2, len(poly)+1))))):
-        if common.degree < 2:
-            continue
         monitor("common", common)
         possible_tmps.add(common)
     monitor("possible_tmps", possible_tmps)
