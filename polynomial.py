@@ -130,45 +130,6 @@ class Term(object):
         else:
             return NotImplemented
 
-    def __rdivmod__(self, other):
-        if isinstance(other, self.convertable_types):
-            return divmod(type(self)(other), self)
-        elif isinstance(other, Term):
-            q_coeff, r_coeff = divmod(other.coeff, self.coeff)
-            powers = dict(other.powers)
-            for var, power in self.powers.iteritems():
-                powers[var] = powers.get(var, 0) - power
-            q_powers = dict()
-            r_powers = dict()
-            for var, power in powers.iteritems():
-                if power < 0:
-                    r_powers[var] = -power
-                elif power > 0:
-                    q_powers[var] = power
-            return (type(self)(q_coeff, q_powers),
-                    type(self)(r_coeff, r_powers))
-        else:
-            return NotImplemented
-    def __divmod__(self, other):
-        if isinstance(other, self.convertable_types):
-            return divmod(self, type(self)(other))
-        elif isinstance(other, Term):
-            q_coeff, r_coeff = divmod(self.coeff, other.coeff)
-            powers = dict(self.powers)
-            for var, power in other.powers.iteritems():
-                powers[var] = powers.get(var, 0) - power
-            q_powers = dict()
-            r_powers = dict()
-            for var, power in powers.iteritems():
-                if power < 0:
-                    r_powers[var] = -power
-                elif power > 0:
-                    q_powers[var] = power
-            return (type(self)(q_coeff, q_powers),
-                    type(self)(r_coeff, r_powers))
-        else:
-            return NotImplemented
-
     def __radd__(self, other):
         return self + other
     def __add__(self, other):
@@ -365,7 +326,7 @@ class Polynomial(PolynomialBase, Iterable):
     @classmethod
     def divmod_inner(cls, num, denom):
         assert isinstance(num, cls)
-        assert isinstance(dneom, cls)
+        assert isinstance(denom, cls)
 
         # This method for polynomial division is taken from section 7.2 of
         # http://www.cs.tamu.edu/academics/tr/tamu-cs-tr-2004-7-4
@@ -396,8 +357,8 @@ class Polynomial(PolynomialBase, Iterable):
         if isinstance(other, self.term_class.convertable_types):
             return divmod(self.term_class(other), self)
         elif isinstance(other, Term):
-            return (type(self)(imap(lambda x: other/x, self.terms)), type(self)(self.term_class(0)))
-        elif not isinstance(other, Polynomial):
+            return divmod(type(self)(other), self)
+        elif isinstance(other, Polynomial):
             return self.divmod_inner(other, self)
         else:
             return NotImplemented
@@ -405,8 +366,8 @@ class Polynomial(PolynomialBase, Iterable):
         if isinstance(other, self.term_class.convertable_types):
             return divmod(self, self.term_class(other))
         elif isinstance(other, Term):
-            return (type(self)(imap(lambda x: x/other, self.terms)), type(self)(self.term_class(0)))
-        elif not isinstance(other, Polynomial):
+            return divmod(self, type(self)(other))
+        elif isinstance(other, Polynomial):
             return self.divmod_inner(self, other)
         else:
             return NotImplemented
@@ -470,6 +431,8 @@ class Polynomial(PolynomialBase, Iterable):
             return self.terms == other.terms
         else:
             return NotImplemented
+    def __ne__(self, other):
+        return not (self == other)
 
     def __str__(self):
         return " + ".join(imap(str, sorted(self.terms, reverse=True,
@@ -539,7 +502,7 @@ class Polynomial(PolynomialBase, Iterable):
 
     @property
     def degree(self):
-        return max(imap(methodcaller('degree'), self.terms))
+        return max(imap(attrgetter('degree'), self.terms))
 
     @property
     def terms(self):
