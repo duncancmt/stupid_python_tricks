@@ -3,8 +3,6 @@ import warnings
 from weakref import WeakKeyDictionary
 from weakcompoundkey import WeakCompoundKey
 from collections import MutableMapping, Callable
-from threading import RLock
-from itertools import imap
 
 def decorator_apply(dec, func, args, kwargs):
     """
