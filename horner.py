@@ -8,18 +8,13 @@ from numbers import Real
 
 from memoize import memoize
 
-def _horner_form_term(term, var, recurse):
-    if len(term.powers) == 0:
-        return [(term, var)]
-    else:
-        if term.coeff != 1:
-            ops = [(Term(term.coeff), var)]
-        else:
-            ops = []
-        for var, power in term.powers.iteritems():
-            for _ in xrange(power):
-                ops.append((Term(0), var))
-        return ops
+def _horner_form_term(term):
+    ops = [(Term(term.coeff), None)]
+    for var, power in term.powers.iteritems():
+        for _ in xrange(power):
+            ops.append((Term(0), var))
+    ops = tuple(ops)
+    return ops
 
 def _horner_form_search(poly, recurse):
     if len(poly.vars) == 0:
@@ -30,6 +25,12 @@ def _horner_form_search(poly, recurse):
         return min(imap(lambda var: recurse(poly, var), poly.vars),
                    key=horner_count_ops)
 
+def _horner_verify(ops, thing):
+    values = dict(imap(lambda var: (var, Polynomial(var)),
+                       thing.vars))
+    alleged = horner_evaluate(ops, values)
+    assert alleged == thing
+
 def _horner_form_poly(poly, var, recurse):
     if len(poly) == 0:
         return recurse(Term(0), var)
@@ -37,12 +38,12 @@ def _horner_form_poly(poly, var, recurse):
         term = iter(poly).next()
         return recurse(term, var)
     else:
-        max_power = max(imap(lambda term: term.powers.get(var, 0), poly.terms))
+        max_power = max(imap(lambda term: term.powers.get(var, 0), poly))
         coeffs = [Polynomial()]*(max_power+1)
         for term in poly:
             power = term.powers.get(var, 0)
             coeffs[power] += term / Term((var, power))
-        ops = [ (recurse(coeff, None), var) for coeff in reversed(coeffs) ]
+        ops = tuple( (recurse(coeff, None), var) for coeff in reversed(coeffs) )
         return ops
 
 def _horner_cleanup(form):
@@ -65,7 +66,7 @@ def horner_form_basic(thing, memo=None):
     def inner(thing, _):
         var = min(thing.vars) if thing.vars else None
         if isinstance(thing, Term):
-            return _horner_form_term(thing, var, inner)
+            return _horner_form_term(thing)
         elif isinstance(thing, Polynomial):
             return _horner_form_poly(thing, var, inner)
         else:
@@ -83,7 +84,7 @@ def horner_form(thing, memo=None):
 
     def inner(thing, var):
         if isinstance(thing, Term):
-            return _horner_form_term(thing, var, inner)
+            return _horner_form_term(thing)
         elif var is None:
             if not isinstance(thing, Polynomial):
                 # immediate error
@@ -107,7 +108,6 @@ def horner_count_ops(ops):
     else:
         return 1
 
-
 def horner_evaluate(ops, values):
     # TODO: doesn't allow tmps to reference each other
     if isinstance(ops, Mapping):
@@ -122,7 +122,6 @@ def horner_evaluate(ops, values):
             coeff = horner_evaluate(op, values)
         else:
             coeff = op
-
         if var is None:
             assert result == 0
         else:
@@ -198,7 +197,7 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None, memo=None):
                                                           possible_tmps), n_tmps)):
         monitor("get_possible_terms", tmps)
         possible_terms = set()
-        for term in poly.terms:
+        for term in poly:
             monitor("get_term_alternatives", term)
             possibilities = {term}
             for names_, tmps_ in imap(lambda x: zip(*x),
