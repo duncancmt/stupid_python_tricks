@@ -130,21 +130,10 @@ def horner_evaluate(ops, values):
     return result
 
 
-def egcd(a, b):
-    """The Extended Euclidean Algorithm
-    In addition to finding the greatest common divisor (GCD) of the
-    arguments, also find and return the coefficients of the linear
-    combination that results in the GCD.
-    """
-    if a == 0:
-        return (b, 0, 1)
-    else:
-        quot, rem = divmod(b, a)
-        g, y, x = egcd(rem, a)
-        return (g, x - quot * y, y)
-
 def gcd(a, b):
-    return egcd(a, b)[0]
+    while b:
+        a, b = b, a%b
+    return a
 
 def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None, memo=None):
     if not isinstance(poly, Polynomial):
@@ -172,7 +161,7 @@ def horner_form_tmp(poly, n_tmps=None, monitor=lambda *args: None, memo=None):
 
     possible_tmps = set()
     for common in ifilter(lambda x: x is not None,
-                          imap(get_common,
+                          imap(lambda subset: get_common(imap(Polynomial, subset)),
                                chain.from_iterable(imap(lambda i: combinations(poly, i),
                                                         xrange(2, len(poly)+1))))):
         if common.degree < 2:
