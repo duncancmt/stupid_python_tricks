@@ -49,15 +49,14 @@ def _shadowed_dict(klass):
     return _sentinel
 
 def getattr_static(obj, attr, default=_sentinel):
-    """Retrieve attributes without triggering dynamic lookup via the
-       descriptor protocol,  __getattr__ or __getattribute__.
+    """Retrieve attributes without triggering dynamic lookup via the descriptor
+    protocol, __getattr__ or __getattribute__.
 
-       Note: this function may not be able to retrieve all attributes
-       that getattr can fetch (like dynamically created attributes)
-       and may find attributes that getattr can't (like descriptors
-       that raise AttributeError). It can also return descriptor objects
-       instead of instance members in some cases. See the
-       documentation for details.
+    Note: this function may not be able to retrieve all attributes that getattr
+    can fetch (like dynamically created attributes) and may find attributes that
+    getattr can't (like descriptors that raise AttributeError). It can also
+    return descriptor objects instead of instance members in some cases. See the
+    documentation for details.
     """
     instance_result = _sentinel
     if not _is_type(obj):
@@ -108,7 +107,8 @@ def isdescriptor(obj):
              hasattr_static(obj, '__delete__') )
 
 def checkdescriptor(obj, name):
-    """returns the descriptor if name is a descriptor in obj, otherwise raises AttributeError"""
+    """returns the descriptor if name is a descriptor in obj, otherwise raises
+    AttributeError"""
     desc = getattr_static(obj, name)
     if isdescriptor(desc):
         return desc
@@ -124,9 +124,11 @@ class BasicProxy(object):
     You should probably subclass Proxy or BetterProxy.
 
     This class is initialized by giving it an object to proxy.
-    Instances of this class behave like the given object in almost all situations.
+    Instances of this class behave like the given object in almost all
+    situations.
 
-    Subclasses should override _munge_names (see docstring for BasicProxy._munge)
+    Subclasses should override _munge_names (see docstring for
+    BasicProxy._munge)
     """
     # TODO: add bits of the docstrings from _munge and _do_munge and reference them from Proxy's docstring
     
@@ -201,9 +203,12 @@ class BasicProxy(object):
     def _do_munge(self, munger, name, retval):
         """
         munger may be:
-            a method/function which is called with the name and value of the method to be munged
-            a name of a method (string) which is looked up using object.__getattribute__ and called as above
-            or a list [of lists]* which is traversed, depth first, from first to last, as above
+            a method/function which is called with the name and value of the
+                method to be munged
+            a name of a method (string) which is looked up using
+                object.__getattribute__ and called as above
+            or a list [of lists]* which is traversed, depth first, from first to
+                last, as above
         """
         if callable(munger):
             retval = munger(name, retval)
@@ -221,11 +226,11 @@ class BasicProxy(object):
             value - the attribute to be munged
         Returns: the munged attribute
         
-        Search through all the ancestor classes' _munge_names in
-        *reverse order* (parent first). For each match of name, modify value
-        by replacing it with the return value of the specified munging
-        function. If name appears in multiple _munge_names it is munged
-        repeatedly, by the parent first, then the child.
+        Search through all the ancestor classes' _munge_names in *reverse order*
+        (parent first). For each match of name, modify value by replacing it
+        with the return value of the specified munging function. If name appears
+        in multiple _munge_names it is munged repeatedly, by the parent first,
+        then the child.
 
         The _munge_names attribute of any subclass should be a mapping from
         method names to descriptioins of how to munge that name (see the
@@ -258,12 +263,14 @@ class BasicProxy(object):
 
     @classmethod
     def _initialize_namespace(cls, theclass, *args, **kwargs):
-        """Create namespace dictionary prior to calling namespace-filling methods"""
+        """Create namespace dictionary prior to calling namespace-filling
+        methods"""
         return dict()
 
     @classmethod
     def _load_special_names(cls, theclass, namespace, *args, **kwargs):
-        """Load all relevant special methods into namespace in preparation for creating the proxy class"""
+        """Load all relevant special methods into namespace in preparation for
+        creating the proxy class"""
         def make_method(name):
             def method(self, *args, **kw):
                 # _special_names are *all* methods, they *must not* be munged to descriptors
@@ -278,8 +285,11 @@ class BasicProxy(object):
     @classmethod
     def _load_descriptors(cls, theclass, namespace, *args, **kwargs):
         """
-        Load all descriptors into namespace in preparation for creating the proxy class.
-        This is unimplemented in BasicProxy. If you want this functionality, extend Proxy
+        Load all descriptors into namespace in preparation for creating the
+        proxy class.
+
+        This is unimplemented in BasicProxy. If you want this functionality,
+        extend Proxy
         """
         pass
 
@@ -429,9 +439,9 @@ class DescriptorProxy(DifficultDescriptorProxy):
 
     Subclasses should override the methods _proxy__get__, _proxy__set__, and
     _proxy__delete__. Their signatures are:
-      _proxy__get__(self, attribute_name, instance, owner)
-      _proxy__set__(self, attribute_name, instance, value)
-      _proxy_delete(self, attribute_name, instance)
+        _proxy__get__(self, attribute_name, instance, owner)
+        _proxy__set__(self, attribute_name, instance, value)
+        _proxy_delete(self, attribute_name, instance)
 
     Inside these methods, the underlying descriptor is available as self._obj
     The instance that the descriptor proxy belongs to is instance._obj
@@ -509,15 +519,18 @@ class Proxy(DifficultProxy):
     A proxy class that _can_ handle descriptor attributes.
 
     This class is initialized by giving it an object to proxy.
-    Instances of this class behave like the given object in almost all situations.
+    Instances of this class behave like the given object in almost all
+    situations.
 
-    Subclasses should override _descriptor_proxy_class (see docstring for DescriptorProxy)
-    and _munge_names (see docstring for BasicProxy._munge)
+    Subclasses should override _descriptor_proxy_class (see docstring for
+    DescriptorProxy) and _munge_names (see docstring for BasicProxy._munge)
 
-    Descriptor proxies are applied in reverse order. The parent's descriptor proxy is applied first.
+    Descriptor proxies are applied in reverse order. The parent's descriptor
+    proxy is applied first.
 
     Special methods that are descriptors are excluded from modification.
-    It should be noted that methods, classmethods, and staticmethods are all descriptors.
+    It should be noted that methods, classmethods, and staticmethods are all
+    descriptors.
     """
     _no_descriptor_proxy_names = frozenset(BasicProxy.__dict__.keys())
 
