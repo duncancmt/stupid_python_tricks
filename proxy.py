@@ -321,8 +321,7 @@ class BasicProxy(object):
             retval = cls.__metaclass__("%s(%s)" % (cls.__name__, theclass.__name__), (cls,), namespace)
         except AttributeError:
             retval = type("%s(%s)" % (cls.__name__, theclass.__name__), (cls,), namespace)
-        # TODO: debug this line
-        # retval.register(retval._class)
+        retval.register(retval._class)
         return retval
 
     @classmethod
@@ -365,8 +364,10 @@ class BasicProxy(object):
         theclass.__init__(ins, obj, *args, **kwargs)
         return ins
 
-class DescriptorProxy(BasicProxy):
+class DifficultDescriptorProxy(BasicProxy):
     """
+    You probably want to use DescriptorProxy. It has a better interface.
+
     This class and subclasses implement a proxy for descriptor attributes.
     You can modify the behavior of __get__, __set__, and __delete__ from here.
 
@@ -412,7 +413,7 @@ class DescriptorProxy(BasicProxy):
                 return self._obj.__delete__(instance._obj)
         else:
             delete = None
-            
+
         return (get, set, delete)
     
     @classmethod
@@ -430,9 +431,92 @@ class DescriptorProxy(BasicProxy):
         if callable(delete):
             namespace['__delete__'] = delete
 
-        super(DescriptorProxy, cls)._finalize_namespace(theclass, namespace)
+        super(DifficultDescriptorProxy, cls)._finalize_namespace(theclass, namespace)
 
-class Proxy(BasicProxy):
+
+class DescriptorProxy(DifficultDescriptorProxy):
+    """
+    This class and subclasses implement a proxy for descriptor attributes.
+    You can modify the behavior of __get__, __set__, and __delete__ from here.
+
+    Subclasses should override the methods _proxy__get__, _proxy__set__, and
+    _proxy__delete__. Their signatures are:
+      _proxy__get__(self, attribute_name, instance, owner)
+      _proxy__set__(self, attribute_name, instance, value)
+      _proxy_delete(self, attribute_name, instance)
+
+    Inside these methods, the underlying descriptor is available as self._obj
+    The instance that the descriptor proxy belongs to is instance._obj
+    The class that the descriptor belongs to is owner._class
+    """
+    @classmethod
+    def _generate_descriptor_methods(cls, name, has_get=False,
+                                                has_set=False,
+                                                has_delete=False):
+        # self._obj will always return the underlying descriptor, not cause code execution
+        # because self._obj is inserted into the instance dict, not the class dict.
+
+        if has_get:
+            _proxy__get__ = getattr_static(cls, '_proxy__get__')
+            def get(self, instance, owner):
+                return _proxy__get__(self, name, instance, owner)
+        else:
+            get = None
+
+        if has_set:
+            _proxy__set__ = getattr_static(cls, '_proxy__set__')
+            def set(self, instance, value):
+                return _proxy__set__(self, name, instance, value)
+        else:
+            set = None
+
+        if has_delete:
+            _proxy__delete__ = getattr_static(cls, '_proxy__delete__')
+            def delete(self, instance):
+                return _proxy__delete__(self, name, instance)
+        else:
+            delete = None
+            
+        return (get, set, delete)
+
+    def _proxy__get__(self, name, instance, owner):
+        if instance is None:
+            return self._obj.__get__(None, owner._class)
+        else:
+            return self._obj.__get__(instance._obj, owner._class)
+
+    def _proxy__set__(self, name, instance, value):
+        return self._obj.__set__(instance._obj, value)
+
+    def _proxy__delete__(self, name, instance):
+        return self._obj.__delete__(instance._obj)
+
+
+class DifficultProxy(BasicProxy):
+    """You probably want to use Proxy instead of this class. If you use this
+    class you will have trouble handling objects just after they're allocated,
+    but before they're initialized."""
+    _descriptor_proxy_class = DescriptorProxy
+    _no_descriptor_proxy_names = frozenset(['__getattribute__'])
+    @classmethod
+    def _load_descriptors(cls, theclass, namespace, *args, **kwargs):
+        """Load all descriptors into namespace in preparation for creating the proxy class."""
+        super(DifficultProxy, cls)._load_descriptors(theclass, namespace)
+
+        for name in dir(theclass):
+            if name in cls._no_descriptor_proxy_names \
+                   or name in namespace:
+                # Names in the namespace and _no_descriptor_proxy_names are those that
+                # sometimes get looked up by Python's internals. Making descriptor
+                # proxies of those names results in very strange behavior.
+                continue
+            attr = getattr_static(theclass, name)
+
+            if isdescriptor(attr):
+                namespace[name] = cls._descriptor_proxy_class(attr, name)
+        
+
+class Proxy(DifficultProxy):
     """
     A proxy class that _can_ handle descriptor attributes.
 
@@ -447,30 +531,7 @@ class Proxy(BasicProxy):
     Special methods that are descriptors are excluded from modification.
     It should be noted that methods, classmethods, and staticmethods are all descriptors.
     """
-    
-    _descriptor_proxy_class = DescriptorProxy
-    _no_descriptor_proxy_names = frozenset(['__get__', '__set__', '__delete__']) | frozenset(BasicProxy.__dict__.keys())
-
-    @classmethod
-    def _load_descriptors(cls, theclass, namespace, *args, **kwargs):
-        """Load all descriptors into namespace in preparation for creating the proxy class."""
-        for name in dir(theclass):
-            if name in cls._no_descriptor_proxy_names \
-                   or name in namespace:
-                # Names in the namespace and _no_descriptor_proxy_names are those that
-                # sometimes get looked up by Python's internals. Making descriptor
-                # proxies of those names results in very strange behavior.
-                continue
-            attr = getattr_static(theclass, name)
-
-            if isdescriptor(attr):
-                for klass in reversed(cls.__mro__):
-                    try:
-                        namespace[name] = attr = klass._descriptor_proxy_class(attr, name)
-                    except AttributeError:
-                        continue
-        
-        super(Proxy, cls)._load_descriptors(theclass, namespace)
+    _no_descriptor_proxy_names = frozenset(BasicProxy.__dict__.keys())
 
 
 class BetterProxy(Proxy):
