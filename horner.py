@@ -100,7 +100,12 @@ def horner_form(thing, memo=None):
 
 
 def horner_count_ops(ops):
-    if isinstance(ops, Iterable):
+    if isinstance(ops, Mapping):
+        retval = 0
+        for _, ops in ops.iteritems():
+            retval += horner_count_ops(ops)
+        return retval
+    elif isinstance(ops, Iterable):
         retval = 0
         for op, var in ops:
             retval += horner_count_ops(op)
