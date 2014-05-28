@@ -170,17 +170,6 @@ class BasicProxy(object):
         except AttributeError:
             setattr(self._obj, name, value)
 
-    # TODO: for some ineffable reason, these have to be explicitly part of the
-    # class instead of being handled below
-    def __nonzero__(self):
-        return bool(self._obj)
-    def __str__(self):
-        return str(self._obj)
-    def __unicode__(self):
-        return unicode(self._obj)
-    def __repr__(self):
-        return repr(self._obj)
-    
     #
     # factories
     #
@@ -189,24 +178,23 @@ class BasicProxy(object):
     # __get__, __set__, and __delete__ require additional information
     #    and can only be handled by DescriptorProxy below
     # _special_names are *all* methods
-    _special_names = frozenset(
-        [ '__abs__', '__add__', '__and__', '__call__', '__cmp__', '__coerce__',
-          '__complex__', '__contains__', '__delitem__',
-          '__delslice__', '__dir__', '__div__', '__divmod__', '__enter__',
-          '__eq__', '__exit__', '__float__', '__floordiv__', '__format__',
-          '__ge__', '__getitem__', '__getslice__', '__gt__',
-          '__hash__', '__hex__', '__iadd__', '__iand__', '__idiv__',
-          '__idivmod__', '__ifloordiv__', '__ilshift__', '__imod__', '__imul__',
-          '__index__', '__int__', '__invert__', '__ior__',
-          '__ipow__', '__irshift__', '__isub__', '__iter__', '__itruediv__',
-          '__ixor__', '__le__', '__len__', '__long__', '__lshift__', '__lt__',
-          '__mod__', '__mul__', '__ne__', '__neg__', '__oct__', '__or__',
-          '__pos__', '__pow__', '__radd__', '__rand__', '__rdiv__',
-          '__rdivmod__', '__reduce__', '__reduce_ex__', '__reversed__',
-          '__rfloordiv__', '__rlshift__', '__rmod__', '__rmul__', '__ror__',
-          '__rpow__', '__rrshift__', '__rshift__', '__rsub__', '__rtruediv__',
-          '__rxor__', '__setitem__', '__setslice__', '__sub__',
-          '__truediv__', '__xor__', 'next', ])
+    _special_names = frozenset([ '__abs__', '__add__', '__and__', '__call__',
+        '__cmp__', '__coerce__', '__complex__', '__contains__', '__delitem__',
+        '__delslice__', '__dir__', '__div__', '__divmod__', '__enter__',
+        '__eq__', '__exit__', '__float__', '__floordiv__', '__format__',
+        '__ge__', '__getitem__', '__getslice__', '__gt__', '__hash__',
+        '__hex__', '__iadd__', '__iand__', '__idiv__', '__idivmod__',
+        '__ifloordiv__', '__ilshift__', '__imod__', '__imul__', '__index__',
+        '__int__', '__invert__', '__ior__', '__ipow__', '__irshift__',
+        '__isub__', '__iter__', '__itruediv__', '__ixor__', '__le__', '__len__',
+        '__long__', '__lshift__', '__lt__', '__mod__', '__mul__', '__ne__',
+        '__neg__', '__nonzero__', '__oct__', '__or__', '__pos__', '__pow__',
+        '__radd__', '__rand__', '__rdiv__', '__rdivmod__', '__reduce__',
+        '__reduce_ex__', '__repr__', '__reversed__', '__rfloordiv__',
+        '__rlshift__', '__rmod__', '__rmul__', '__ror__', '__rpow__',
+        '__rrshift__', '__rshift__', '__rsub__', '__rtruediv__', '__rxor__',
+        '__setitem__', '__setslice__', '__str__', '__sub__', '__truediv__',
+        '__unicode__', '__xor__', 'next', ])
     _protected_names = frozenset([ '_obj', '_munge', '_do_munge', '_munge_cache', ])
     _munge_names = {}
 
@@ -340,11 +328,11 @@ class BasicProxy(object):
             except KeyError:
                 cls._class_proxy_cache = cache = {}
 
-        key = (obj.__class__, tuple(args), tuple(sorted(kwargs.iteritems())))
+        key = (type(obj), tuple(args), tuple(sorted(kwargs.iteritems())))
         try:
             theclass = cache[key]
         except KeyError:
-            theclass = cls._create_class_proxy(obj.__class__, *args, **kwargs)
+            theclass = cls._create_class_proxy(type(obj), *args, **kwargs)
             try:
                 cache[key] = theclass
             except TypeError:
