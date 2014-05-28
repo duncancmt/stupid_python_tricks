@@ -262,13 +262,13 @@ class BasicProxy(object):
         return retval
 
     @classmethod
-    def _initialize_namespace(cls, theclass, *args, **kwargs):
+    def _initialize_namespace(cls, objclass, *args, **kwargs):
         """Create namespace dictionary prior to calling namespace-filling
         methods"""
         return dict()
 
     @classmethod
-    def _load_special_names(cls, theclass, namespace, *args, **kwargs):
+    def _load_special_names(cls, objclass, namespace, *args, **kwargs):
         """Load all relevant special methods into namespace in preparation for
         creating the proxy class"""
         def make_method(name):
@@ -279,11 +279,11 @@ class BasicProxy(object):
             return method
         
         for name in cls._special_names:
-            if hasattr(theclass, name) and not hasattr(cls, name):
+            if hasattr(objclass, name) and not hasattr(cls, name):
                 namespace[name] = make_method(name)
 
     @classmethod
-    def _load_descriptors(cls, theclass, namespace, *args, **kwargs):
+    def _load_descriptors(cls, objclass, namespace, *args, **kwargs):
         """
         Load all descriptors into namespace in preparation for creating the
         proxy class.
@@ -294,13 +294,13 @@ class BasicProxy(object):
         pass
 
     @classmethod
-    def _finalize_namespace(cls, theclass, namespace, *args, **kwargs):
+    def _finalize_namespace(cls, objclass, namespace, *args, **kwargs):
         """Make final tweaks to namespace prior to creating the proxy class"""
         # needed to proxy class descriptor attributes
-        namespace['_class'] = theclass
+        namespace['_class'] = objclass
 
     @classmethod
-    def _create_class_proxy(cls, theclass, *args, **kwargs):
+    def _create_class_proxy(cls, objclass, *args, **kwargs):
         """
         Creates a proxy for the given class
         Calls the following hooks in order:
@@ -310,15 +310,15 @@ class BasicProxy(object):
             _finalize_namespace
         """
 
-        namespace = cls._initialize_namespace(theclass, *args, **kwargs)
-        cls._load_special_names(theclass, namespace, *args, **kwargs)
-        cls._load_descriptors(theclass, namespace, *args, **kwargs)
-        cls._finalize_namespace(theclass, namespace, *args, **kwargs)
+        namespace = cls._initialize_namespace(objclass, *args, **kwargs)
+        cls._load_special_names(objclass, namespace, *args, **kwargs)
+        cls._load_descriptors(objclass, namespace, *args, **kwargs)
+        cls._finalize_namespace(objclass, namespace, *args, **kwargs)
 
         try:
-            retval = cls.__metaclass__("%s(%s)" % (cls.__name__, theclass.__name__), (cls,), namespace)
+            retval = cls.__metaclass__("%s(%s)" % (cls.__name__, objclass.__name__), (cls,), namespace)
         except AttributeError:
-            retval = type("%s(%s)" % (cls.__name__, theclass.__name__), (cls,), namespace)
+            retval = type("%s(%s)" % (cls.__name__, objclass.__name__), (cls,), namespace)
         retval.register(retval._class)
         return retval
 
@@ -340,14 +340,14 @@ class BasicProxy(object):
 
         key = (type(obj), tuple(args), tuple(sorted(kwargs.iteritems())))
         try:
-            theclass = cache[key]
+            objclass = cache[key]
         except KeyError:
-            theclass = cls._create_class_proxy(type(obj), *args, **kwargs)
+            objclass = cls._create_class_proxy(type(obj), *args, **kwargs)
             try:
-                cache[key] = theclass
+                cache[key] = objclass
             except TypeError:
                 pass
-        return theclass
+        return objclass
     
     def __new__(cls, obj, *args, **kwargs):
         """
@@ -357,9 +357,9 @@ class BasicProxy(object):
         note: _class_proxy_cache is unique per deriving class (each deriving
         class must hold its own cache)
         """
-        theclass = cls._get_class_proxy(obj, *args, **kwargs)
-        ins = object.__new__(theclass)
-        theclass.__init__(ins, obj, *args, **kwargs)
+        objclass = cls._get_class_proxy(obj, *args, **kwargs)
+        ins = object.__new__(objclass)
+        objclass.__init__(ins, obj, *args, **kwargs)
         return ins
 
 class DifficultDescriptorProxy(BasicProxy):
@@ -415,11 +415,11 @@ class DifficultDescriptorProxy(BasicProxy):
         return (get, set, delete)
     
     @classmethod
-    def _finalize_namespace(cls, theclass, namespace, name):
+    def _finalize_namespace(cls, objclass, namespace, name):
         (get, set, delete) = cls._generate_descriptor_methods(name,
-                                                              hasattr_static(theclass, '__get__'),
-                                                              hasattr_static(theclass, '__set__'),
-                                                              hasattr_static(theclass, '__delete__'))
+                                                              hasattr_static(objclass, '__get__'),
+                                                              hasattr_static(objclass, '__set__'),
+                                                              hasattr_static(objclass, '__delete__'))
         if callable(get):
             namespace['__get__'] = get
 
@@ -429,7 +429,7 @@ class DifficultDescriptorProxy(BasicProxy):
         if callable(delete):
             namespace['__delete__'] = delete
 
-        super(DifficultDescriptorProxy, cls)._finalize_namespace(theclass, namespace)
+        super(DifficultDescriptorProxy, cls)._finalize_namespace(objclass, namespace)
 
 
 class DescriptorProxy(DifficultDescriptorProxy):
@@ -497,18 +497,18 @@ class DifficultProxy(BasicProxy):
     _descriptor_proxy_class = DescriptorProxy
     _no_descriptor_proxy_names = frozenset(['__getattribute__'])
     @classmethod
-    def _load_descriptors(cls, theclass, namespace, *args, **kwargs):
+    def _load_descriptors(cls, objclass, namespace, *args, **kwargs):
         """Load all descriptors into namespace in preparation for creating the proxy class."""
-        super(DifficultProxy, cls)._load_descriptors(theclass, namespace)
+        super(DifficultProxy, cls)._load_descriptors(objclass, namespace)
 
-        for name in dir(theclass):
+        for name in dir(objclass):
             if name in cls._no_descriptor_proxy_names \
                    or name in namespace:
                 # Names in the namespace and _no_descriptor_proxy_names are those that
                 # sometimes get looked up by Python's internals. Making descriptor
                 # proxies of those names results in very strange behavior.
                 continue
-            attr = getattr_static(theclass, name)
+            attr = getattr_static(objclass, name)
 
             if isdescriptor(attr):
                 namespace[name] = cls._descriptor_proxy_class(attr, name)
@@ -547,7 +547,7 @@ class BetterProxy(Proxy):
     """
 
     @classmethod
-    def _finalize_namespace(cls, theclass, namespace, aggressive=False, *args, **kwargs):
+    def _finalize_namespace(cls, objclass, namespace, aggressive=False, *args, **kwargs):
         """
         If a __i*__ method is not defined, but the corresponding __*__ is,
         define a __i*__ method with appropriate semantics.
@@ -583,7 +583,7 @@ class BetterProxy(Proxy):
                     namespace[iname] = make_imethod(name)
 
         namespace['_aggressive'] = aggressive
-        super(BetterProxy, cls)._finalize_namespace(theclass, namespace, aggressive=aggressive,
+        super(BetterProxy, cls)._finalize_namespace(objclass, namespace, aggressive=aggressive,
                                                     *args, **kwargs)
 
     def _reproxy(self, name, value):
