@@ -72,36 +72,38 @@ class Term(object):
         else:
             return NotImplemented
 
-    def __rtruediv__(self, other):
-        if isinstance(other, self.convertable_types):
-            return type(self)(other) / self
-        elif isinstance(other, Term):
-            return type(self)(other.coeff/self.coeff, other.powers,
-                              imap(lambda (var, power): (var, -power),
-                                   self.powers.iteritems()))
+    @classmethod
+    def truediv_inner(cls, a, b):
+        if isinstance(a, cls.convertable_types):
+            return cls.truediv_inner(cls(a), b)
+        elif isinstance(b, cls.convertable_types):
+            return cls.truediv_inner(a, cls(b))
+        elif isinstance(a, cls) and isinstance(b, cls):
+            return cls(a.coeff/b.coeff, a.powers,
+                       imap(lambda (var, power): (var, -power),
+                            b.powers.iteritems()))
         else:
             return NotImplemented
     def __truediv__(self, other):
-        if isinstance(other, self.convertable_types):
-            return self / type(self)(other)
-        elif isinstance(other, Term):
-            return type(self)(self.coeff/other.coeff, self.powers,
-                              imap(lambda (var, power): (var, -power),
-                                   other.powers.iteritems()))
-        else:
-            return NotImplemented
-    def __rdiv__(self, other):
-        return other / self
+        return self.truediv_inner(self, other)
+    def __rtruediv__(self, other):
+        return self.truediv_inner(other, self)
+
     def __div__(self, other):
         return self / other
+    def __rdiv__(self, other):
+        return other / self
 
-    def __rfloordiv__(self, other):
-        if isinstance(other, self.convertable_types):
-            return type(self)(other) // self
-        elif isinstance(other, Term):
-            coeff = other.coeff // self.coeff
-            powers = dict(other.powers)
-            for var, power in self.powers.iteritems():
+    @classmethod
+    def floordiv_inner(cls, a, b):
+        if isinstance(a, cls.convertable_types):
+            return cls.floordiv_inner(cls(a), b)
+        elif isinstance(b, cls.convertable_types):
+            return cls.floordiv_inner(a, cls(b))
+        elif isinstance(a, cls) and isinstance(b, cls):
+            coeff = a.coeff//b.coeff
+            powers = dict(a.powers)
+            for var, power in b.powers.iteritems():
                 powers[var] = powers.get(var, 0) - power
             to_delete = []
             for var, power in powers.iteritems():
@@ -109,26 +111,13 @@ class Term(object):
                     to_delete.append(var)
             for var in to_delete:
                 del powers[var]
-            return type(self)(coeff, powers)
+            return cls(coeff, powers)
         else:
             return NotImplemented
     def __floordiv__(self, other):
-        if isinstance(other, self.convertable_types):
-            return self // type(self)(other)
-        elif isinstance(other, Term):
-            coeff = self.coeff//other.coeff
-            powers = dict(self.powers)
-            for var, power in other.powers.iteritems():
-                powers[var] = powers.get(var, 0) - power
-            to_delete = []
-            for var, power in powers.iteritems():
-                if power <= 0:
-                    to_delete.append(var)
-            for var in to_delete:
-                del powers[var]
-            return type(self)(coeff, powers)
-        else:
-            return NotImplemented
+        return self.floordiv_inner(self, other)
+    def __rfloordiv__(self, other):
+        return self.floordiv_inner(other, self)
 
     def __radd__(self, other):
         return self + other
