@@ -4,7 +4,7 @@ import types
 
 _sentinel = object()
 
-def _static_getmro(klass):
+def getmro_static(klass):
     retval = type.__dict__['__mro__'].__get__(klass)
     if retval is None:
         retval = tuple()
@@ -20,7 +20,7 @@ def _check_instance(obj, attr):
 
 
 def _check_class(klass, attr):
-    for entry in _static_getmro(klass):
+    for entry in getmro_static(klass):
         if _shadowed_dict(type(entry)) is _sentinel:
             try:
                 return entry.__dict__[attr]
@@ -30,14 +30,14 @@ def _check_class(klass, attr):
 
 def _is_type(obj):
     try:
-        _static_getmro(obj)
+        getmro_static(obj)
     except TypeError:
         return False
     return True
 
 def _shadowed_dict(klass):
     dict_attr = type.__dict__["__dict__"]
-    for entry in _static_getmro(klass):
+    for entry in getmro_static(klass):
         try:
             class_dict = dict_attr.__get__(entry)["__dict__"]
         except KeyError:
@@ -83,7 +83,7 @@ def getattr_static(obj, attr, default=_sentinel):
 
     if obj is klass:
         # for types we check the metaclass too
-        for entry in _static_getmro(type(klass)):
+        for entry in getmro_static(type(klass)):
             if _shadowed_dict(type(entry)) is _sentinel:
                 try:
                     return entry.__dict__[attr]
@@ -97,9 +97,35 @@ def getattr_static(obj, attr, default=_sentinel):
 def hasattr_static(obj, name):
     try:
         getattr_static(obj, name)
-        return True
     except AttributeError:
         return False
+    else:
+        return True
 
 
-__all__ = ["getattr_static", "hasattr_static"]
+def dir_static(obj):
+    result = set()
+    if _is_type(obj):
+        klass = obj
+    else:
+        klass = type(obj)
+        dict_attr = _shadowed_dict(klass)
+        if (dict_attr is _sentinel or
+            type(dict_attr) is types.MemberDescriptorType):
+            try:
+                result.update(dict.iterkeys(object.__getattribute__(obj, "__dict__")))
+            except AttributeError:
+                pass
+
+    dictproxy = type(type.__dict__)
+    for entry in getmro_static(klass):
+        if _shadowed_dict(type(entry)) is _sentinel:
+            result.update(dictproxy.iterkeys(entry.__dict__))
+
+    if obj is klass:
+        for entry in getmro_static(type(klass)):
+            result.update(dictproxy.iterkeys(entry.__dict__))
+
+    return tuple(result)
+
+__all__ = ["getattr_static", "hasattr_static", "dir_static", "getmro_static"]
