@@ -3,9 +3,9 @@ from __future__ import division
 from immutable import *
 from itertools import *
 from operator import *
-from functools import cmp_to_key, partial
+from functools import cmp_to_key
 from collections import Iterable, Mapping
-from numbers import Real
+from numbers import Real, Integral
 from copy import copy,deepcopy
 
 class Term(object):
@@ -60,6 +60,13 @@ class Term(object):
                 to_delete.append(var)
         for var in to_delete:
             del powers[var]
+
+    def __pow__(self, other):
+        if not isinstance(other, Real):
+            raise TypeError("Can only raise Terms to Real powers (not variable powers)")
+        return type(self)(self.coeff ** other,
+                          imap(lambda (var, power): (var, power*other),
+                               self.powers.iteritems()))
 
     def __rmul__(self, other):
         return self * other
@@ -188,7 +195,7 @@ class Term(object):
 
     @immutableproperty
     def lexicographic_key(self):
-        return partial(cmp_to_key(lambda _, other: self.lexicographic_cmp(other)), None)
+        return cmp_to_key(lambda self, other: self.lexicographic_cmp(other))(self)
 
     def __str__(self):
         def format_power((var, power)):
@@ -284,6 +291,17 @@ class Polynomial(object):
             new_terms.append(t)
         return(frozenset(new_terms))
         
+
+    def __pow__(self, other):
+        if not isinstance(other, Integral):
+            raise TypeError("Can only raise Polynomials to Integral powers")
+        sq = self
+        accum = type(self)(1)
+        for bit in reversed(bin(other)[2:]):
+            if bit == "1":
+                accum *= sq
+            sq *= sq
+        return accum
 
     def __rmul__(self, other):
         return self * other
