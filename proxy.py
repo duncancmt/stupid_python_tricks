@@ -1,6 +1,6 @@
 from abc import ABCMeta
 
-from getattr_static import getattr_static, hasattr_static
+from getattr_static import *
 
 # TODO: this doesn't work: `cls.meth(proxy, *args, **kwargs)` when proxy is a proxy for an object of type cls
 class BasicProxy(object):
@@ -402,12 +402,15 @@ class DifficultProxy(BasicProxy):
     @classmethod
     def _load_descriptors(cls, objclass, namespace, *args, **kwargs):
         """Load all descriptors into namespace in preparation for creating the proxy class."""
-        for name in dir(objclass):
+        for name in dir_static(objclass):
             if name in cls._no_descriptor_proxy_names \
-                   or name in namespace:
-                # Names in the namespace and _no_descriptor_proxy_names are those that
-                # sometimes get looked up by Python's internals. Making descriptor
-                # proxies of those names results in very strange behavior.
+                   or name in namespace \
+                   or hasattr_static(cls, name):
+                # Names in the namespace and _no_descriptor_proxy_names are
+                # those that sometimes get looked up by Python's
+                # internals. Making descriptor proxies of those names results in
+                # very strange behavior. Names that are already attributes of
+                # cls have special-case behavior defined by a child class.
                 continue
             attr = getattr_static(objclass, name)
 
