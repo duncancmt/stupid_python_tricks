@@ -225,14 +225,14 @@ class BasicProxy(object):
 
         key = (type(obj), tuple(args), tuple(sorted(kwargs.iteritems())))
         try:
-            objclass = cache[key]
+            proxy_class = cache[key]
         except KeyError:
-            objclass = cls._create_class_proxy(type(obj), *args, **kwargs)
+            proxy_class = cls._create_class_proxy(type(obj), *args, **kwargs)
             try:
-                cache[key] = objclass
+                cache[key] = proxy_class
             except TypeError:
                 pass
-        return objclass
+        return proxy_class
     
     def __new__(cls, obj, *args, **kwargs):
         """
@@ -242,9 +242,10 @@ class BasicProxy(object):
         note: _class_proxy_cache is unique per deriving class (each deriving
         class must hold its own cache)
         """
-        objclass = cls._get_class_proxy(obj, *args, **kwargs)
-        ins = object.__new__(objclass)
-        objclass.__init__(ins, obj, *args, **kwargs)
+        proxy_class = cls._get_class_proxy(obj, *args, **kwargs)
+        ins = object.__new__(proxy_class)
+        # It is unnecessary to call __init__ directly here.
+        # python will call it after __new__ because isinstance(ins, cls)
         return ins
 
 
