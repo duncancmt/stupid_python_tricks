@@ -1,7 +1,7 @@
-from collections import deque
+from collections import deque, Iterator, Iterable
 from proxy import BetterProxy
 
-class IterWrapper(Wrapper):
+class IterWrapper(BetterProxy):
     """This class adds a bunch of useful functionality to iterators.
 
     Subscript notation [] "peeks" ahead in the iterator. If you "peek" a value, it will still be returned by the ".next()" method as usual. If the iterator has terminated before reaching the value you want to "peek", the subscript operation will raise an IndexError.
@@ -13,12 +13,21 @@ class IterWrapper(Wrapper):
 
     All other methods of the iterator are mirrored unmodified.
     """
+    @classmethod
+    def _ensure_iterator(cls, obj):
+        if not isinstance(obj, Iterable):
+            raise TypeError("Can only wrap Iterable objects")
+        elif not isinstance(obj, Iterator):
+            return cls._ensure_iterator(iter(obj))
+        else:
+            return obj
+
+    def __new__(cls, obj):
+        return super(IterWrapper, cls).__new__(cls, cls._ensure_iterator(obj))
+
     def __init__(self, obj):
-        try:
-            obj.next
-        except AttributeError:
-            obj = iter(obj)
-        super(IterWrapper, self).__init__(obj)
+        super(IterWrapper, self).__init__(self._ensure_iterator(obj))
+        assert isinstance(self._obj, type(self))
         object.__setattr__(self, '_cache', deque())
 
     def __iter__(self):
