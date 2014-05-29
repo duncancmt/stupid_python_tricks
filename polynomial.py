@@ -1,17 +1,16 @@
 from __future__ import division
 
-from noconflict import classmaker
-from immutable import ImmutableEnforcerMeta, ImmutableDict
+from immutable import *
 from itertools import *
 from operator import *
-from functools import cmp_to_key
+from functools import cmp_to_key, partial
 from collections import Iterable, Mapping
 from numbers import Real
 from copy import copy,deepcopy
 
 class Term(object):
     __metaclass__ = ImmutableEnforcerMeta
-    # TODO: define __slots__
+    __slots__ = ['__proper', '__lexicographic_key', '__vars', '__coeff', '__powers']
     convertable_types = (Real, basestring, Mapping, tuple)
     def __init__(self, *args):
         super(Term, self).__init__()
@@ -156,10 +155,6 @@ class Term(object):
             retval &= abs(self.powers.get(var, 0)) >= abs(other.powers.get(var, 0))
         return retval
 
-    @property
-    def proper(self):
-        return all(imap(lambda x: x > 0, self.powers.itervalues()))
-
     def compare(self, other, comparison):
         if isinstance(other, self.convertable_types):
             return self == type(self)(other)
@@ -191,7 +186,9 @@ class Term(object):
                 return c
         return 0
 
-    lexicographic_key = property(cmp_to_key(lexicographic_cmp))
+    @immutableproperty
+    def lexicographic_key(self):
+        return partial(cmp_to_key(lambda _, other: self.lexicographic_cmp(other)), None)
 
     def __str__(self):
         def format_power((var, power)):
@@ -223,42 +220,30 @@ class Term(object):
     def __setstate__(self, state):
         self.coeff, self.powers = state
 
-    @property
-    def vars(self):
-        try:
-            return self.__vars
-        except AttributeError:
-            self.vars = frozenset(self.powers.iterkeys())
-            return self.vars
-    @vars.setter
-    def vars(self, value):
-        self.__vars = value
-    @property
-    def variables(self):
-        return self.vars
+    @immutableproperty
+    def proper(self):
+        return all(imap(lambda x: x > 0, self.powers.itervalues()))
 
-    @property
+    @immutableproperty
+    def vars(self):
+        return frozenset(self.powers.iterkeys())
+    variables = vars
+
+    @immutableproperty
     def degree(self):
         return sum(self.powers.itervalues())
 
-    @property
+    @immutableproperty
     def coeff(self):
-        return self.__coeff
-    @coeff.setter
-    def coeff(self, value):
-        self.__coeff = value
-    @property
+        raise AttributeError("Uninitialized Term instance")
+    @immutableproperty
     def powers(self):
-        return self.__powers
-    @powers.setter
-    def powers(self, value):
-        self.__powers = value
+        raise AttributeError("Uninitialized Term instance")
 
-class PolynomialBase(object):
+
+class Polynomial(object):
     __metaclass__ = ImmutableEnforcerMeta
-class Polynomial(PolynomialBase, Iterable):
-    __metaclass__ = classmaker()
-
+    __slots__ = ['__proper', '__lead_term', '__vars', '__degree', '__terms']
     term_class = Term
     def __init__(self, *args):
         super(Polynomial, self).__init__()
@@ -428,11 +413,14 @@ class Polynomial(PolynomialBase, Iterable):
                                            key=attrgetter('lexicographic_key'))))
 
     def __repr__(self):
-        return "%s.%s(%s)" % (type(self).__module__,
-                              type(self).__name__,
-                              ", ".join(imap(repr, sorted(self.terms, reverse=True,
-                                                          key=attrgetter('lexicographic_key')))))
-
+        try:
+            return "%s.%s(%s)" % (type(self).__module__,
+                                  type(self).__name__,
+                                  ", ".join(imap(repr, sorted(self.terms, reverse=True,
+                                                              key=attrgetter('lexicographic_key')))))
+        except AttributeError:
+            return "%s.%s(<uninitialized terms>)" % (type(self).__module__,
+                                                     type(self).__name__)
     def __hash__(self):
         return hash(self.terms)
     def __len__(self):
@@ -450,55 +438,29 @@ class Polynomial(PolynomialBase, Iterable):
     def __setstate__(self, state):
         self.terms = state
 
-    @property
+    @immutableproperty
     def proper(self):
-        try:
-            return self.__proper
-        except AttributeError:
-            self.proper = all(imap(attrgetter('proper'), self.terms))
-            return self.proper
-    @proper.setter
-    def proper(self, value):
-        self.__proper = value
+        return all(imap(attrgetter('proper'), self.terms))
 
-    @property
+    @immutableproperty
     def lead_term(self):
-        try:
-            return self.__lead_term
-        except AttributeError:
-            self.lead_term = max(self.terms, key=attrgetter('lexicographic_key'))
-            return self.lead_term
-    @lead_term.setter
-    def lead_term(self, value):
-        self.__lead_term = value
+        return max(self.terms, key=attrgetter('lexicographic_key'))
 
-    @property
+    @immutableproperty
     def vars(self):
-        try:
-            return self.__vars
-        except AttributeError:
-            retval = frozenset()
-            for term in self.terms:
-                retval |= term.vars
-            self.vars = retval
-            return self.vars
-    @vars.setter
-    def vars(self, value):
-        self.__vars = value
-    @property
-    def variables(self):
-        return self.vars
+        retval = frozenset()
+        for term in self.terms:
+            retval |= term.vars
+        return retval
+    variables = vars
 
-    @property
+    @immutableproperty
     def degree(self):
         return max(imap(attrgetter('degree'), self.terms))
 
-    @property
+    @immutableproperty
     def terms(self):
-        return self.__terms
-    @terms.setter
-    def terms(self, value):
-        self.__terms = value
+        raise AttributeError("Uninitialized Polynomial instance")
 
 
 __all__ = ['Term', 'Polynomial']
