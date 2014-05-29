@@ -343,7 +343,7 @@ class DescriptorProxy(DifficultDescriptorProxy):
     _proxy__delete__. Their signatures are:
         _proxy__get__(self, attribute_name, instance, owner)
         _proxy__set__(self, attribute_name, instance, value)
-        _proxy_delete(self, attribute_name, instance)
+        _proxy__delete__(self, attribute_name, instance)
 
     Inside these methods, the underlying descriptor is available as self._obj
     The instance that the descriptor proxy belongs to is instance._obj
@@ -401,8 +401,6 @@ class DifficultProxy(BasicProxy):
     @classmethod
     def _load_descriptors(cls, objclass, namespace, *args, **kwargs):
         """Load all descriptors into namespace in preparation for creating the proxy class."""
-        super(DifficultProxy, cls)._load_descriptors(objclass, namespace)
-
         for name in dir(objclass):
             if name in cls._no_descriptor_proxy_names \
                    or name in namespace:
@@ -413,8 +411,12 @@ class DifficultProxy(BasicProxy):
             attr = getattr_static(objclass, name)
 
             if isdescriptor(attr):
-                namespace[name] = cls._descriptor_proxy_class(attr, name)
-        
+                for klass in reversed(cls.__mro__):
+                    try:
+                        namespace[name] = attr = klass.__dict__['_descriptor_proxy_class'](attr, name)
+                    except KeyError:
+                        pass
+
 
 class Proxy(DifficultProxy):
     """
