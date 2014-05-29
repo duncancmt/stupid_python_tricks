@@ -2,50 +2,67 @@ from collections import Mapping
 from noconflict import classmaker
 from copy import copy, deepcopy
 
+from getattr_static import getattr_static
+
 # python's built-in abc module sets these attributes on classes
 ok_mutable_names = ['_abc_negative_cache', '_abc_negative_cache_version']
 
+mro_getter = type.__dict__['__mro__'].__get__
+type_dict_getter = type.__dict__['__dict__'].__get__
+object_dict_getter = lambda obj: object.__getattribute__(obj, '__dict__')
+
+def check_mutable(obj, name):
+    try:
+        if name in object_dict_getter(obj):
+            raise AttributeError('Cannot mutate private attribute %s of %s' \
+                                 % (repr(name), repr(obj)))
+    except AttributeError:
+        if name not in getattr_static(obj, '__slots__'):
+            raise AttributeError('%s cannot have attribute %s' \
+                                 % (repr(type(obj).__name__),
+                                    repr(name)))
+        attr_descriptor = getattr_static(obj, name)
+        try:
+            attr_descriptor.__get__(obj, type(obj))
+        except AttributeError:
+            pass
+        else:
+            raise AttributeError('Cannot mutate private attribute %s of %s' \
+                                 % (repr(name), repr(obj)))
+    else:
+        mro = mro_getter(type(obj))
+        if mro is None:
+            mro = tuple()
+        for c in mro:
+            if name in type_dict_getter(c):
+                raise AttributeError('Cannot mutate private attribute %s of %s' \
+                                     % (repr(name), repr(obj)))
+
+
 class ImmutableEnforcerMeta(type):
     def __new__(mcls, name, bases, namespace):
-        old_setattr = namespace.get('__setattr__', object.__setattr__)
-        old_delattr = namespace.get('__delattr__', object.__delattr__)
-
-        mro_getter = type.__dict__['__mro__'].__get__
-        type_dict_getter = type.__dict__['__dict__'].__get__
-        object_dict_getter = lambda obj: object.__getattribute__(obj, '__dict__')
+        normal_cls = type(name, bases, namespace)
+        fallback_setattr = getattr_static(normal_cls, '__setattr__')
+        fallback_delattr = getattr_static(normal_cls, '__delattr__')
 
         def __setattr__(self, name, value):
             if name[0] == '_':
-                if name in object_dict_getter(self):
-                    raise AttributeError('Cannot mutate private attribute %s of %s' % (repr(name), repr(self)))
-                mro = mro_getter(type(self))
-                if mro is None:
-                    mro = tuple()
-                for c in mro:
-                    if name in type_dict_getter(c):
-                        raise AttributeError('Cannot mutate private attribute %s of %s' % (repr(name), repr(self)))
-            return old_setattr(self, name, value)
+                check_mutable(self, name)
+            fallback_setattr(self, name, value)
 
         def __delattr__(self, name):
             if name[0] == '_':
-                if name in object_dict_getter(self):
-                    raise AttributeError('Cannot delete private attribute %s of %s' % (repr(name), repr(self)))
-                mro = mro_getter(type(self))
-                if mro is None:
-                    mro = tuple()
-                for c in mro:
-                    if name in type_dict_getter(c):
-                        raise AttributeError('Cannot delete private attribute %s of %s' % (repr(name), repr(self)))
-            return old_delattr(self, name)
+                check_mutable(self, name)
+            fallback_delattr(self, name)
 
         namespace = dict(namespace)
         namespace['__setattr__'] = __setattr__
         namespace['__delattr__'] = __delattr__
         # python name munging changes __immutable to this
         namespace['_ImmutableEnforcerMeta__immutable'] = False
-        cls = super(ImmutableEnforcerMeta, mcls).__new__(mcls, name, bases, namespace)
-        cls.__immutable = True
-        return cls
+        immutable_cls = super(ImmutableEnforcerMeta, mcls).__new__(mcls, name, bases, namespace)
+        immutable_cls.__immutable = True
+        return immutable_cls
 
 
     def __setattr__(cls, name, value):
