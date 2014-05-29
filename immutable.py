@@ -1,6 +1,7 @@
 from collections import Mapping
 from noconflict import classmaker
 from copy import copy, deepcopy
+from functools import wraps
 
 from getattr_static import getattr_static
 
@@ -121,4 +122,26 @@ class ImmutableDict(ImmutableDictBase, Mapping):
 
 FrozenDict = ImmutableDict
 
-__all__ = ['ImmutableEnforcerMeta', 'ImmutableDict', 'FrozenDict']
+
+def immutableproperty(f):
+    attribute_name = '__'+f.func_name
+    property_name = f.func_name
+
+    @property
+    @wraps(f)
+    def wrapped(self):
+        try:
+            return getattr(self, property_name)
+        except AttributeError:
+            retval = f(self)
+            setattr(self, property_name, retval)
+            return retval
+    @wrapped.setter
+    @wraps(f)
+    def wrapped(self, value):
+        setattr(self, attribute_name, value)
+
+    return wrapped
+
+
+__all__ = ['ImmutableEnforcerMeta', 'ImmutableDict', 'FrozenDict', 'immutableproperty']
