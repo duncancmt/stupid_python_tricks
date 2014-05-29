@@ -18,11 +18,12 @@ def check_mutable(obj, name):
             raise AttributeError('Cannot mutate private attribute %s of %s' \
                                  % (repr(name), repr(obj)))
     except AttributeError:
-        if name not in getattr_static(obj, '__slots__'):
+        try:
+            attr_descriptor = getattr_static(obj, name)
+        except AttributeError:
             raise AttributeError('%s cannot have attribute %s' \
                                  % (repr(type(obj).__name__),
                                     repr(name)))
-        attr_descriptor = getattr_static(obj, name)
         try:
             attr_descriptor.__get__(obj, type(obj))
         except AttributeError:
@@ -42,7 +43,11 @@ def check_mutable(obj, name):
 
 class ImmutableEnforcerMeta(type):
     def __new__(mcls, name, bases, namespace):
-        normal_cls = type(name, bases, namespace)
+        namespace = dict(namespace)
+        # python name munging changes __immutable to this
+        namespace['_ImmutableEnforcerMeta__immutable'] = False
+
+        normal_cls = super(ImmutableEnforcerMeta, mcls).__new__(mcls, name, bases, namespace)
         fallback_setattr = getattr_static(normal_cls, '__setattr__')
         fallback_delattr = getattr_static(normal_cls, '__delattr__')
 
@@ -56,11 +61,8 @@ class ImmutableEnforcerMeta(type):
                 check_mutable(self, name)
             fallback_delattr(self, name)
 
-        namespace = dict(namespace)
         namespace['__setattr__'] = __setattr__
         namespace['__delattr__'] = __delattr__
-        # python name munging changes __immutable to this
-        namespace['_ImmutableEnforcerMeta__immutable'] = False
         immutable_cls = super(ImmutableEnforcerMeta, mcls).__new__(mcls, name, bases, namespace)
         immutable_cls.__immutable = True
         return immutable_cls
@@ -124,14 +126,18 @@ FrozenDict = ImmutableDict
 
 
 def immutableproperty(f):
-    attribute_name = '__'+f.func_name
+    attribute_name = [None] # stupid python scoping rules
     property_name = f.func_name
 
     @property
     @wraps(f)
     def wrapped(self):
+        # stupid python scoping rules
+        if attribute_name[0] is None:
+            attribute_name[0] = "_%s__%s" % (type(self).__name__,
+                                             f.func_name)
         try:
-            return getattr(self, property_name)
+            return getattr(self, attribute_name[0])
         except AttributeError:
             retval = f(self)
             setattr(self, property_name, retval)
@@ -139,7 +145,11 @@ def immutableproperty(f):
     @wrapped.setter
     @wraps(f)
     def wrapped(self, value):
-        setattr(self, attribute_name, value)
+        # stupid python scoping rules
+        if attribute_name[0] is None:
+            attribute_name[0] = "_%s__%s" % (type(self).__name__,
+                                             f.func_name)
+        setattr(self, attribute_name[0], value)
 
     return wrapped
 
