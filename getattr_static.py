@@ -93,4 +93,13 @@ def getattr_static(obj, attr, default=_sentinel):
         return default
     raise AttributeError('%s object has no attribute %s' % (repr(type(obj).__name__), repr(attr)))
 
-__all__ = ["getattr_static"]
+
+def hasattr_static(obj, name):
+    try:
+        getattr_static(obj, name)
+        return True
+    except AttributeError:
+        return False
+
+
+__all__ = ["getattr_static", "hasattr_static"]

@@ -1,5 +1,6 @@
 from abc import ABCMeta
-from getattr_static import getattr_static
+
+from getattr_static import getattr_static, hasattr_static
 
 # TODO: this doesn't work: `cls.meth(proxy, *args, **kwargs)` when proxy is a proxy for an object of type cls
 class BasicProxy(object):
@@ -247,13 +248,6 @@ class BasicProxy(object):
         return ins
 
 
-
-def hasattr_static(obj, name):
-    try:
-        getattr_static(obj, name)
-        return True
-    except AttributeError:
-        return False
 
 def isdescriptor(obj):
     return ( hasattr_static(obj, '__get__') or \
