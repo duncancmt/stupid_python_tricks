@@ -280,7 +280,8 @@ class DifficultDescriptorProxy(BasicProxy):
     objects are supplied as any of (get, set, delete), then that method will
     be missing in the descriptor proxy. If _generate_descriptor_methods raises
     AttributeError, the descriptor will not be proxied by this descriptor
-    proxy. (it may still be proxied by subclasses)
+    proxy. (it may still be proxied by the descriptor proxy class of an
+    ancestor of the normal proxy class)
 
     Inside the methods supplied by _generate_descriptor_methods, the underlying
     descriptor is available as self._obj . The instance that the descriptor
@@ -415,11 +416,14 @@ class DifficultProxy(BasicProxy):
             attr = getattr_static(objclass, name)
 
             if isdescriptor(attr):
-                for klass in reversed(cls.__mro__):
+                # TODO: come up with some sort of sane inheritance mechanism for descriptor proxies
+                for klass in cls.__mro__:
                     try:
-                        namespace[name] = attr = klass.__dict__['_descriptor_proxy_class'](attr, name)
-                    except KeyError:
-                        pass
+                        namespace[name] = klass.__dict__['_descriptor_proxy_class'](attr, name)
+                    except AttributeError, KeyError:
+                        continue
+                    else:
+                        break
 
 
 class Proxy(DifficultProxy):
@@ -433,8 +437,9 @@ class Proxy(DifficultProxy):
     Subclasses should override _descriptor_proxy_class (see docstring for
     DescriptorProxy) and _munge_names (see docstring for BasicProxy._munge)
 
-    Descriptor proxies are applied in reverse order. The parent's descriptor
-    proxy is applied first.
+    The first descriptor proxy class to not raise AttributeError is the one
+    that is applied to that descriptor attribute. Descriptor proxy classes
+    are traversed in the same order as the proxy class' MRO.
 
     Special methods that are descriptors are excluded from modification.
     It should be noted that methods, classmethods, and staticmethods are all
@@ -443,16 +448,32 @@ class Proxy(DifficultProxy):
     _no_descriptor_proxy_names = frozenset(BasicProxy.__dict__.keys())
 
 
+class BetterDescriptorProxy(DescriptorProxy):
+    def _proxy__get__(self, name, instance, owner):
+        return self._obj.__get__(instance, owner)
+
+    def _proxy__set__(self, name, instance, value):
+        return self._obj.__set__(instance._obj, value)
+
+    def _proxy__delete__(self, name, instance):
+        return self._obj.__delete__(instance._obj)
+
 class BetterProxy(Proxy):
     """
     This proxy class attempts to proxy the return values of the __i*__ methods.
-    These methods would normally return an un-proxied objecy.
+    These methods would normally return an un-proxied object.
 
     If aggressive=True is passed, we will also attempt to proxy the output of
     the normal arithmetic __*__ methods.
 
+    Method binding is also performed on the proxy object instead of the
+    underlying object. That means that the methods of the underlying object
+    are "stolen" by the proxy object when looked up and "self" inside these
+    stolen methods refers to the proxy object, not the underlying object.
+
     For further information, see docstring for Proxy
     """
+    _descriptor_proxy_class = BetterDescriptorProxy
 
     @classmethod
     def _finalize_namespace(cls, objclass, namespace, aggressive=False, *args, **kwargs):
@@ -522,4 +543,4 @@ class BetterProxy(Proxy):
                      '__ixor__':'_reproxy',
                      '__ior__':'_reproxy', }
 
-__all__ = ["BasicProxy", "Proxy", "BetterProxy", "DescriptorProxy"]
+__all__ = ["BasicProxy", "Proxy", "DescriptorProxy", "BetterProxy", "BetterDescriptorProxy"]
