@@ -3,7 +3,8 @@
 # WeakCompoundKey AS KEYS IN A weakref.WeakKeyDictionary
 
 from weakref import ref
-from itertools import imap, chain
+from itertools import imap, chain, ifilter, product
+from operator import itemgetter
 
 strong_refs = set()
 
@@ -46,43 +47,94 @@ class WeakCompoundKey(object):
 
 
 class WeakCompoundKeyCorrect(object):
+    """WeakCompoundKeyCorrect does the same thing as WeakCompoundKey, except
+    that when two keys are compared and compare equal, both will only be
+    deallocated when all of a group of subelements for a particular argument,
+    have been deallocated. Basically, WeakCompoundKeyCorrect is contaminative
+    when keys are compared. WeakCompoundKeyCorrect is typically used as a key to
+    a WeakKeyDictionary where you want the dictionary to compare on `==' instead
+    of `is'.
+
+    Notably, WeakCompoundKeyCorrect *DOES NOT* inherit from WeakCompoundKey
+
+    Example:
+    from weakref import ref
+    from weakcompoundkey import WeakCompoundKeyCorrect
+    class Foo(object):
+        def __init__(self, bar):
+            self.bar = bar
+        def __hash__(self):
+            return hash(self.bar) ^ hash(type(self))
+        def __eq__(self, other):
+            return self.bar == other.bar
+        def __del__(self):
+            print "I die", str(self.bar)
+    a = Foo(1)
+    b = Foo(1)
+    c = ref(WeakCompoundKeyCorrect(a))
+    d = ref(WeakCompoundKeyCorrect(b))
+    c() is None # False
+    d() is None # False
+    c() == d() # True
+    del a # prints "I die 1"
+    c() is None # False, if we were using WeakCompoundKey, this would be True
+    d() is None # False, as expected
+    del b $ prints "I die 1"
+    c() is None # True
+    d() is None # True
+    """
+    
     def __init__(self, *args, **kwargs):
-        super(WeakCompoundKey, self).__init__()
+        super(WeakCompoundKeyCorrect, self).__init__()
         self.__hash = hash(args) ^ hash(frozenset(kwargs.iteritems()))
         self.__refs = frozenset(imap(lambda (x,y): (x, self.make_refs(y)),
                                      chain(enumerate(args), kwargs.iteritems())))
         strong_refs.add(self)
+        
     def make_refs(self, *things):
         # we try really, really hard not to accidentally make
         # reference cycles with closures
-        def make_callback(others):
-            def callback(_):
-                if all(imap(lambda x: x() is None, others)):
-                    self.__explode()
-            return callback
-
         return tuple(imap(lambda thing: ref(thing,
-                                            make_callback(
+                                            self.make_callback(
                                               tuple(
-                                                ifilter(lambda x: x is not thing,
-                                                        things)))),
+                                                imap(ref, ifilter(lambda x: x is not thing,
+                                                                  things))))),
                           things))
 
+    def make_callback(weakcompound_instance, other_weakrefs):
+        # this method has to be separate from make_refs to avoid making
+        # reference cycles
+        def callback(this_weakref):
+            if all(imap(lambda x: x() is None, other_weakrefs)):
+                weakcompound_instance.__explode()
+        return callback
+
     def __explode(self):
+        # It's possible to call __explode multiple times because
+        # callback inside make_refs is not threadsafe. However, this
+        # doesn't matter because all we care about is that __explode
+        # is called at least once when the strong references are
+        # dropped
         try:
             strong_refs.remove(self)
             del self.__refs
         except:
             pass
+        # and the GC claims us (sometimes takes more than 1 GC pass,
+        # but at this point there are no longer any strong references
+        # to ourself)
 
     def __hash__(self):
         return self.__hash
     def __eq__(self, other):
         if self is other:
             return True
+        if self.__hash != other.__hash:
+            return False
         def unpack(refs):
             return dict(imap(lambda (x, y):
-                               (x, frozenset(imap(lambda ref: ref(), y))),
+                               (x, frozenset(ifilter(lambda thing: thing is not None,
+                                                     imap(lambda r: r(), y)))),
                              refs))
         self_unpacked = unpack(self.__refs)
         other_unpacked = unpack(other.__refs)
@@ -92,7 +144,7 @@ class WeakCompoundKeyCorrect(object):
                                                        other_unpacked.get(name, sentinel)))):
                 self_unpacked[name] =\
                   other_unpacked[name] =\
-                    frozenset(
+                    tuple(
                       imap(itemgetter(1),
                            frozenset(
                              imap(lambda x: (id(x), x), # force frozenset to compare on identity
