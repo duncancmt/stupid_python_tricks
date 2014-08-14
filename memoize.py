@@ -4,7 +4,6 @@ from weakref import WeakKeyDictionary
 from weakcompoundkey import WeakCompoundKey
 from collections import MutableMapping, Callable
 from threading import RLock
-from collections import deque
 
 def decorator_apply(dec, func, args, kwargs):
     """
@@ -28,7 +27,7 @@ def memoize(f, cache=None):
     """memoize memoizes its argument.
     Argument references are strongly held, which can lead to memory leaks.
     If you are concerned about this, use the lower-performance weakmemoize.
-    memoize optimizes recursions so that you won't overflow the python stack.
+    memoize hooks recursions so that you won't overflow the python stack.
     memoize is intended for use as a decorator. e.g.
 
     @memoize
@@ -105,7 +104,7 @@ def weakmemoize(f, cache=None):
     Argument references are weakly held to prevent memory leaks.
     There is a substantial performance penalty to how weakmemoize holds its references.
     If you are concerned about this, use the higher-performance memoize.
-    weakmemoize optimizes recursions so that you won't overflow the python stack.
+    weakmemoize hooks recursions so that you won't overflow the python stack.
     weakmemoize is intended for use as a decorator. e.g.
 
     @weakmemoize
