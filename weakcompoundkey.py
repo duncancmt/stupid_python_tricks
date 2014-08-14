@@ -1,6 +1,6 @@
-# WARNING. IF USED IMPROPERLY, THE CLASS IN THIS MODULE RESULTS IN
-# SOME PRETTY BIZARRE BEHAVIOR. YOU SHOULD ONLY USE INSTANCES OF
-# WeakCompoundKey AS KEYS IN A weakref.WeakKeyDictionary
+# WARNING. IF USED IMPROPERLY, THE CLASS IN THIS MODULE RESULTS IN SOME PRETTY
+# BIZARRE BEHAVIOR. YOU SHOULD ONLY USE INSTANCES OF WeakCompoundKey or
+# WeakCompoundKeyStrict AS KEYS IN A weakref.WeakKeyDictionary
 
 from weakref import ref
 from itertools import imap, chain, ifilter, product
@@ -8,26 +8,29 @@ from operator import itemgetter
 
 strong_refs = set()
 
-class WeakCompoundKey(object):
-    """WeakCompoundKey groups together its hashable arguments and provides a
+class WeakCompoundKeyStrict(object):
+    """WeakCompoundKeyStrict groups together its hashable arguments and provides a
     single object that can be used as the key to a WeakKeyDictionary that only
-    compares equal to another WeakCompoundKey object that was instantiated with
+    compares equal to another WeakCompoundKeyStrict object that was instantiated with
     the same arguments. A use of this combination is memoization where lines
     from the memoization table should be deleted when the original object that
     produced that line dies.
 
-    The only non-weak references to a WeakCompoundKeyCorrect object should come
+    Notably, WeakCompoundKey *DOES NOT* inherit from WeakCompoundKeyStrict or
+    vice versa.
+
+    The only non-weak references to a WeakCompoundKeyStrict object should come
     from the ref objects it instantiates during __init__ and from the strong_ref
     set defined in this module. This means that when one of the objects that we
     reference gets GC'd, we drop all non-weak references to ourself. It's
-    confusing. If you make other non-weak references to WeakCompoundKey
+    confusing. If you make other non-weak references to WeakCompoundKeyStrict
     instances, strange things will happen
     """
 
     # can't use __slots__ (makes things un-weakreference-able)
     # can't use ImmutableEnforcerMeta (we need to delete self.__refs)
     def __init__(self, *args, **kwargs):
-        super(WeakCompoundKey, self).__init__()
+        super(WeakCompoundKeyStrict, self).__init__()
         self.__refs = frozenset(imap(lambda (x,y): (x, ref(y, lambda _: self.__explode())),
                                      chain(enumerate(args), kwargs.iteritems())))
         strong_refs.add(self)
@@ -52,19 +55,19 @@ class WeakCompoundKey(object):
         return self.__refs == other.__refs
 
 
-class WeakCompoundKeyCorrect(object):
-    """WeakCompoundKeyCorrect does the same thing as WeakCompoundKey, except
+class WeakCompoundKey(object):
+    """WeakCompoundKey does the same thing as WeakCompoundKeyStrict, except
     that when two keys are compared and compare equal, both will only be
     deallocated when all of a group of subelements for a particular argument,
-    have been deallocated. Basically, WeakCompoundKeyCorrect is contaminative
-    when keys are compared. WeakCompoundKeyCorrect is typically used as a key to
+    have been deallocated. Basically, WeakCompoundKey is contaminative
+    when keys are compared. WeakCompoundKey is typically used as a key to
     a WeakKeyDictionary where you want the dictionary to compare on `==' instead
     of `is'.
 
-    Notably, WeakCompoundKeyCorrect *DOES NOT* inherit from WeakCompoundKey or
+    Notably, WeakCompoundKey *DOES NOT* inherit from WeakCompoundKeyStrict or
     vice versa.
 
-    The only non-weak references to a WeakCompoundKeyCorrect object should come
+    The only non-weak references to a WeakCompoundKey object should come
     from the ref objects it instantiates during __init__ and from the strong_ref
     set defined in this module. This means that when one of the objects that we
     reference gets GC'd, we drop all non-weak references to ourself. It's
@@ -74,7 +77,7 @@ class WeakCompoundKeyCorrect(object):
 
     Example usage:
     from weakref import ref
-    from weakcompoundkey import WeakCompoundKeyCorrect
+    from weakcompoundkey import WeakCompoundKey
     class Foo(object):
         def __init__(self, bar):
             self.bar = bar
@@ -86,13 +89,13 @@ class WeakCompoundKeyCorrect(object):
             print "I die", str(self.bar)
     a = Foo(1)
     b = Foo(1)
-    c = ref(WeakCompoundKeyCorrect(a))
-    d = ref(WeakCompoundKeyCorrect(b))
+    c = ref(WeakCompoundKey(a))
+    d = ref(WeakCompoundKey(b))
     c() is None # False
     d() is None # False
     c() == d() # True
     del a # prints "I die 1"
-    c() is None # False, if we were using WeakCompoundKey, this would be True
+    c() is None # False, if we were using WeakCompoundKeyStrict, this would be True
     d() is None # False, as expected
     del b # prints "I die 1"
     c() is None # True
@@ -102,7 +105,7 @@ class WeakCompoundKeyCorrect(object):
     # can't use __slots__ (makes things un-weakreference-able)
     # can't use ImmutableEnforcerMeta (we need to delete self.__refs)
     def __init__(self, *args, **kwargs):
-        super(WeakCompoundKeyCorrect, self).__init__()
+        super(WeakCompoundKey, self).__init__()
         self.__hash = hash(args) ^ hash(frozenset(kwargs.iteritems()))
         self.__refs = frozenset(imap(lambda (x,y): (x, self.make_refs(y)),
                                      chain(enumerate(args), kwargs.iteritems())))
@@ -177,4 +180,4 @@ class WeakCompoundKeyCorrect(object):
         # old refs get GC'd and can no longer cause us to explode
         return True
 
-__all__ = ["WeakCompoundKey", "WeakCompoundKeyCorrect"]
+__all__ = ["WeakCompoundKeyStrict", "WeakCompoundKey"]
