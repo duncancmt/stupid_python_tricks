@@ -9,6 +9,21 @@ from operator import itemgetter
 strong_refs = set()
 
 class WeakCompoundKey(object):
+    """WeakCompoundKey groups together its hashable arguments and provides a
+    single object that can be used as the key to a WeakKeyDictionary that only
+    compares equal to another WeakCompoundKey object that was instantiated with
+    the same arguments. A use of this combination is memoization where lines
+    from the memoization table should be deleted when the original object that
+    produced that line dies.
+
+    The only non-weak references to a WeakCompoundKeyCorrect object should come
+    from the ref objects it instantiates during __init__ and from the strong_ref
+    set defined in this module. This means that when one of the objects that we
+    reference gets GC'd, we drop all non-weak references to ourself. It's
+    confusing. If you make other non-weak references to WeakCompoundKey
+    instances, strange things will happen
+    """
+
     # can't use __slots__ (makes things un-weakreference-able)
     # can't use ImmutableEnforcerMeta (we need to delete self.__refs)
     def __init__(self, *args, **kwargs):
@@ -84,6 +99,8 @@ class WeakCompoundKeyCorrect(object):
     d() is None # True
     """
 
+    # can't use __slots__ (makes things un-weakreference-able)
+    # can't use ImmutableEnforcerMeta (we need to delete self.__refs)
     def __init__(self, *args, **kwargs):
         super(WeakCompoundKeyCorrect, self).__init__()
         self.__hash = hash(args) ^ hash(frozenset(kwargs.iteritems()))
