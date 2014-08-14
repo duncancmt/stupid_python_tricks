@@ -9,15 +9,6 @@ from operator import itemgetter
 strong_refs = set()
 
 class WeakCompoundKey(object):
-    # The only non-weak references to a WeakCompoundKey object should
-    # come from the ref objects it instantiates during __init__ and
-    # from the strong_ref set defined in this module. This means that
-    # when one of the objects that we reference gets GC'd, we drop all
-    # non-weak references to ourself. It's confusing.
-    #
-    # If you make other non-weak references to WeakCompoundKey
-    # instances, strange things will happen
-
     # can't use __slots__ (makes things un-weakreference-able)
     # can't use ImmutableEnforcerMeta (we need to delete self.__refs)
     def __init__(self, *args, **kwargs):
@@ -55,9 +46,18 @@ class WeakCompoundKeyCorrect(object):
     a WeakKeyDictionary where you want the dictionary to compare on `==' instead
     of `is'.
 
-    Notably, WeakCompoundKeyCorrect *DOES NOT* inherit from WeakCompoundKey
+    Notably, WeakCompoundKeyCorrect *DOES NOT* inherit from WeakCompoundKey or
+    vice versa.
 
-    Example:
+    The only non-weak references to a WeakCompoundKeyCorrect object should come
+    from the ref objects it instantiates during __init__ and from the strong_ref
+    set defined in this module. This means that when one of the objects that we
+    reference gets GC'd, we drop all non-weak references to ourself. It's
+    confusing. If you make other non-weak references to WeakCompoundKey
+    instances, strange things will happen
+
+
+    Example usage:
     from weakref import ref
     from weakcompoundkey import WeakCompoundKeyCorrect
     class Foo(object):
@@ -79,7 +79,7 @@ class WeakCompoundKeyCorrect(object):
     del a # prints "I die 1"
     c() is None # False, if we were using WeakCompoundKey, this would be True
     d() is None # False, as expected
-    del b $ prints "I die 1"
+    del b # prints "I die 1"
     c() is None # True
     d() is None # True
     """
