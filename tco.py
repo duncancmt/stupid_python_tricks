@@ -127,9 +127,9 @@ def tail_call_optimize(f):
                 # up to (not including, although it wouldn't matter) the other
                 # tail_call_optimized frame. We check to make sure that the next
                 # instruction in each of those frames is a RETURN_VALUE. We skip
-                # ahead 3 instructions instead of 1 because python's compiler
-                # always emits 3 instructions for each operation, typically 2 of
-                # those are either POPs or STOP_CODEs.
+                # ahead 3 instructions instead of 1 because the 2 bytes that
+                # come after the CALL_FUNCTION* instruction are the argument to
+                # that instruction.
                 raise TailRecursionException(args, kwargs)
             else:
                 return f(*args, **kwargs)
