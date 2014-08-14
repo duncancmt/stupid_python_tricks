@@ -33,7 +33,9 @@ def decorator_decorator(dec, func, *args, **kwargs):
 
 class OncePerThread(object):
     """OncePerThread is a context manager that ensures that its block is only
-    entered once per thread per OncePerThread instance.
+    entered once per thread per OncePerThread instance. You can think of this as
+    the opposite of threading.RLock. It allows other threads to enter the
+    protected block, but prevents reentry from the same thread.
 
     The attribute `entered' is True when the current thread already has a block
     protected by this OncePerThread instance.
