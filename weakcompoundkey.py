@@ -83,14 +83,14 @@ class WeakCompoundKeyCorrect(object):
     c() is None # True
     d() is None # True
     """
-    
+
     def __init__(self, *args, **kwargs):
         super(WeakCompoundKeyCorrect, self).__init__()
         self.__hash = hash(args) ^ hash(frozenset(kwargs.iteritems()))
         self.__refs = frozenset(imap(lambda (x,y): (x, self.make_refs(y)),
                                      chain(enumerate(args), kwargs.iteritems())))
         strong_refs.add(self)
-        
+
     def make_refs(self, *things):
         # we try really, really hard not to accidentally make
         # reference cycles with closures
