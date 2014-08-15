@@ -218,13 +218,23 @@ if __name__ == '__main__':
 
     print '\n\niterative factorial timing'
     iterative_time = timeit.timeit(stmt='fact_iterative(1000)',
-                                   setup='from __main__ import fact_iterative',
+                                   setup='from %s import fact_iterative' % __name__,
                                    number=10000)
     print iterative_time / 10000, 'seconds per call'
 
     print '\n\ntail-recursive factorial timing'
-    recursive_time =  timeit.timeit(stmt='fact(1000)',
-                                    setup='from __main__ import fact',
-                                    number=10000)
+    recursive_time = timeit.timeit(stmt='fact(1000)',
+                                   setup='from %s import fact' % __name__,
+                                   number=10000)
+    print recursive_time / 10000, 'seconds per call'
+    print 'factor of', recursive_time / iterative_time, 'slowdown'
+
+    @tco.tail_call_optimize(unsafe=True)
+    def fact(n, accum=1):
+        return accum if n == 0 else fact(n-1, accum*n)
+    print '\n\nunsafe tail-recursive factorial timing'
+    recursive_time = timeit.timeit(stmt='fact(1000)',
+                                   setup='from %s import fact' % __name__,
+                                   number=10000)
     print recursive_time / 10000, 'seconds per call'
     print 'factor of', recursive_time / iterative_time, 'slowdown'
