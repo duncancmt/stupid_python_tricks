@@ -173,3 +173,25 @@ if __name__ == '__main__':
         print "that should've thrown an error :("
     except RuntimeError:
         print "factorial(1000) overflows the stack"
+
+
+    import timeit
+    def fact_iterative(n):
+        accum = 1
+        while n > 0:
+            accum *= n
+            n -= 1
+        return accum
+
+    print '\n\niterative factorial timing'
+    iterative_time = timeit.timeit(stmt='fact_iterative(1000)',
+                                   setup='from __main__ import fact_iterative',
+                                   number=10000)
+    print iterative_time / 10000, 'seconds per call'
+
+    print '\n\ntail-recursive factorial timing'
+    recursive_time =  timeit.timeit(stmt='fact(1000)',
+                                    setup='from __main__ import fact',
+                                    number=10000)
+    print recursive_time / 10000, 'seconds per call'
+    print 'factor of', recursive_time / iterative_time, 'slowdown'
