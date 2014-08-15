@@ -103,7 +103,7 @@ def tail_call_optimize(f=None, unsafe=False):
     overflow.
 
     tail_call_optimize is intended for use as a decorator. e.g.
-    @tco
+    @tail_call_optimize
     def foo(*args, **kwargs):
         ...
 
@@ -114,11 +114,11 @@ def tail_call_optimize(f=None, unsafe=False):
     hand, if you can guarantee that you will only recurse with tail calls,
     turning off bytecode checks will make your code faster.
 
-    @tco(unsafe=True)
+    @tail_call_optimize(unsafe=True)
     def foo(*args, **kwargs):
         ...
     == or ==
-    @tco(True)
+    @tail_call_optimize(True)
     def foo(*args, **kwargs):
         ...
     """
