@@ -44,6 +44,7 @@ class OncePerThread(object):
     The attribute `frames_to_owner' yields the frames between the calling frame
     and the owner frame, not including either end point.
     """
+    __slots__ = ['exc', 'local_storage']
     def __init__(self, exc):
         self.exc = exc
         self.local_storage = local()
@@ -83,13 +84,14 @@ class OncePerThread(object):
     @property
     def frames_to_owner(self):
         frame = sys._getframe().f_back.f_back
-        while frame is not self.owner:
+        owner = self.owner
+        while frame is not owner:
             yield frame
             frame = frame.f_back
 
 
 @decorator_decorator
-def tail_call_optimize(f):
+def tail_call_optimize(f=None, unsafe=False):
     """tail_call_optimize performs tail-call optimization when its argument is a
     tail-recursive function.
 
@@ -99,7 +101,35 @@ def tail_call_optimize(f):
     inspection. However, tail_call_optimize will ensure that memory usage of a
     tail-recursive function is bounded by a constant and that the stack will not
     overflow.
+
+    tail_call_optimize is intended for use as a decorator. e.g.
+    @tco
+    def foo(*args, **kwargs):
+        ...
+
+    However, it has an alternative invocation that lets you turn off the
+    bytecode checks. Turning off the bytecode checks makes tail_call_optimize
+    treat *ALL* recursion as tail recursion. If you turn off the bytecode checks
+    and make a non-tail recursive call, your code *WILL BREAK*. On the other
+    hand, if you can guarantee that you will only recurse with tail calls,
+    turning off bytecode checks will make your code faster.
+
+    @tco(unsafe=True)
+    def foo(*args, **kwargs):
+        ...
+    == or ==
+    @tco(True)
+    def foo(*args, **kwargs):
+        ...
     """
+
+    if f is None:
+        f = unsafe
+    if isinstance(f, bool):
+        @decorator_decorator
+        def tail_call_optimize_unsafe(new_f):
+            return tail_call_optimize(new_f, unsafe=f)
+        return tail_call_optimize_unsafe
     
     class TailRecursionException(BaseException):
         pass
@@ -110,17 +140,11 @@ def tail_call_optimize(f):
     lock = OncePerThread(AlreadyCalledError)
 
     def tail_call_optimized(*args, **kwargs):
-        try:
-            with lock:
-                while True:
-                    try:
-                        return f(*args, **kwargs)
-                    except TailRecursionException as e:
-                        assert len(e.args) == 2
-                        args = e.args[0]
-                        kwargs = e.args[1]
-        except AlreadyCalledError:
-            if all(imap(lambda frame: ord(frame.f_code.co_code[frame.f_lasti+3]) \
+        # it's faster to check the lock rather than catch the exception thrown
+        # when we try to reenter
+        if lock.entered:
+            if unsafe or \
+               all(imap(lambda frame: ord(frame.f_code.co_code[frame.f_lasti+3]) \
                                           == dis.opmap['RETURN_VALUE'],
                         lock.frames_to_owner)):
                 # We check each frame from the frame calling the TCO'd function
@@ -133,6 +157,15 @@ def tail_call_optimize(f):
                 raise TailRecursionException(args, kwargs)
             else:
                 return f(*args, **kwargs)
+        else:
+            with lock:
+                while True:
+                    try:
+                        return f(*args, **kwargs)
+                    except TailRecursionException as e:
+                        assert len(e.args) == 2
+                        args = e.args[0]
+                        kwargs = e.args[1]
 
     return tail_call_optimized
 
