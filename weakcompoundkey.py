@@ -33,7 +33,7 @@ class WeakCompoundKeyStrict(object):
         super(WeakCompoundKeyStrict, self).__init__()
         self.__refs = frozenset(imap(lambda (x,y): (x, ref(y, lambda _: self.__explode())),
                                      chain(enumerate(args), kwargs.iteritems())))
-        strong_refs.add(self)
+        strong_refs.add((id(self), self))
     def __explode(self):
         # It's possible to call __explode multiple times because
         # callback inside make_refs is not threadsafe. However, this
@@ -41,7 +41,7 @@ class WeakCompoundKeyStrict(object):
         # is called at least once when the strong references are
         # dropped
         try:
-            strong_refs.remove(self)
+            strong_refs.remove((id(self), self))
             del self.__refs
         except:
             pass
@@ -109,7 +109,7 @@ class WeakCompoundKey(object):
         self.__hash = hash(args) ^ hash(frozenset(kwargs.iteritems()))
         self.__refs = frozenset(imap(lambda (x,y): (x, self.make_refs(y)),
                                      chain(enumerate(args), kwargs.iteritems())))
-        strong_refs.add(self)
+        strong_refs.add((id(self), self))
 
     def make_refs(self, *things):
         # we try really, really hard not to accidentally make
@@ -136,7 +136,7 @@ class WeakCompoundKey(object):
         # is called at least once when the strong references are
         # dropped
         try:
-            strong_refs.remove(self)
+            strong_refs.remove((id(self), self))
             del self.__refs
         except:
             pass
