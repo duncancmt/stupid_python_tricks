@@ -1,39 +1,34 @@
 import sys
 import inspect
-import types
-import importlib
-from collections import Callable
 
 from decorator_decorator import decorates
+from proxy import BetterProxy
 
-def make_me_callable(main_fn):
-    """This function is black magic. Further docstring to come."""
-    module = inspect.getmodule(sys._getframe().f_back)
-
-    copied_attributes = [False] # python2's scoping rules are dumb
-
-    class CallableModule(types.ModuleType):
-        def __init__(self):
-            try:
-                doc = module.__doc__
-            except AttributeError:
-                super(CallableModule, self).__init__(module.__name__)
-            else:
-                super(CallableModule, self).__init__(module.__name__, doc)
-
+def make_module_callable(main_fn, module):
+    """Replace "module" with a callable module that invokes "main_fn" when called."""
+    class CallableModule(BetterProxy):
         @staticmethod
         @decorates(main_fn)
         def __call__(*args, **kwargs):
             return main_fn(*args, **kwargs)
 
-        def __getattr__(self, name):
-            # stupid scoping rules
-            if not copied_attributes[0]:
-                for attr in dir(module):
-                    setattr(self, attr, getattr(module, attr))
-                copied_attributes[0] = True
-            return getattr(module, name)
+    sys.modules[module.__name__] = CallableModule(module)
 
-    sys.modules[module.__name__] = CallableModule()
+def make_me_callable(main_fn):
+    """Magic function that makes the calling module a callable module with the
+    argument to this function as the function that is invoked when the module is
+    called."""
+    # Walk the stack towards the caller until we find a frame that doesn't
+    # belong to this module. Then invoke make_module_callable with the module
+    # that that frame belongs to.
+    this_module = sys.modules[__name__]
+    frame = sys._getframe()
+    module = inspect.getmodule(frame)
+    while module is this_module or module is None:
+        frame = frame.f_back
+        module = inspect.getmodule(frame)
+    return make_module_callable(main_fn, module)
 
 __all__ = ['make_me_callable']
+
+make_module_callable(make_me_callable, sys.modules[__name__])
