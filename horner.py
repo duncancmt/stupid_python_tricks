@@ -19,7 +19,7 @@ def _horner_form_term(term):
 def _horner_form_search(poly, recurse):
     if len(poly.vars) == 0:
         assert len(poly) == 1
-        term = iter(poly).next()
+        term = next(iter(poly))
         return recurse(term, None)
     else:
         return min(imap(lambda var: recurse(poly, var), poly.vars),
@@ -35,7 +35,7 @@ def _horner_form_poly(poly, var, recurse):
     if len(poly) == 0:
         return recurse(Term(0), var)
     if len(poly) == 1:
-        term = iter(poly).next()
+        term = next(iter(poly))
         return recurse(term, var)
     else:
         max_power = max(imap(lambda term: term.powers.get(var, 0), poly))

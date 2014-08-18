@@ -2,9 +2,9 @@ from numbers import Integral
 from itertools import islice
 from sys import maxint
 
-from proxy import BasicProxy
+from proxy import BetterProxy
 
-class FastSlicer(BasicProxy):
+class FastSlicer(BetterProxy):
     def __new__(cls, obj, start=None, stop=None, *args, **kwargs):
         return super(FastSlicer, cls).__new__(cls, obj, *args, **kwargs)
     

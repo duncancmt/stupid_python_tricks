@@ -4,12 +4,23 @@ from proxy import BetterProxy
 class IterWrapper(BetterProxy):
     """This class adds a bunch of useful functionality to iterators.
 
-    Subscript notation [] "peeks" ahead in the iterator. If you "peek" a value, it will still be returned by the ".next()" method as usual. If the iterator has terminated before reaching the value you want to "peek", the subscript operation will raise an IndexError.
+    Subscript notation [] "peeks" ahead in the iterator. If you "peek" a value,
+    it will still be returned by the ".next()" method as usual. If the iterator
+    has terminated before reaching the value you want to "peek", the subscript
+    operation will raise an IndexError.
     
-    The "drop" method immediately advances the iterator the given number of items forward, ignoring the values returned. Attempting to drop 0 items does nothing. Attempting to drop more items than the iterator has will raise an IndexError.
+    The "drop" method immediately advances the iterator the given number of
+    items forward, ignoring the values returned. Attempting to drop 0 items does
+    nothing. Attempting to drop more items than the iterator has will raise an
+    IndexError.
 
-    The "push" method adds an arbitrary value to the beginning of the iterator. That is, the next value peeked or returned by ".next()" will be the value supplied to the "push" method.
-    It is possible to use the push method to "restart" a finished iterator. If the underlying iterator has previously raised a StopIteration exception, pushing a new value onto the iterator will cause the next invocation of the ".next()" method to return the pushed item.
+    The "push" method adds an arbitrary value to the beginning of the
+    iterator. That is, the next value peeked or returned by ".next()" will be
+    the value supplied to the "push" method.  It is possible to use the push
+    method to "restart" a finished iterator. If the underlying iterator has
+    previously raised a StopIteration exception, pushing a new value onto the
+    iterator will cause the next invocation of the ".next()" method to return
+    the pushed item.
 
     All other methods of the iterator are mirrored unmodified.
     """
@@ -35,7 +46,7 @@ class IterWrapper(BetterProxy):
 
     def next(self):
         if len(self._cache) == 0:
-            return self._obj.next()
+            return next(self._obj)
         else:
             return self._cache.popleft()
 
