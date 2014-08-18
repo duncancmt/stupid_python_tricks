@@ -168,4 +168,4 @@ weakmemoized = weakmemoize
 __all__ = ['memoize','memoized', 'weakmemoize', 'weakmemoized']
 
 import callable_module
-callable_module.make_me_callable(memoize)
+callable_module(memoize)

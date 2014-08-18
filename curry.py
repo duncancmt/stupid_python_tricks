@@ -79,4 +79,4 @@ def foo(*args, **kwargs):
 __all__ = ['UndefinedArityError', 'curry']
 
 import callable_module
-callable_module.make_me_callable(curry)
+callable_module(curry)
