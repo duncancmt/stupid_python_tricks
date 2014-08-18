@@ -162,6 +162,8 @@ tcod = tail_call_optimize
 
 __all__ = ["tail_call_optimize", "tail_call_optimized", "tco", "tcod"]
 
+import callable_module
+callable_module.make_me_callable(tail_call_optimize)
 
 if __name__ == '__main__':
     tco = sys.modules[__name__]

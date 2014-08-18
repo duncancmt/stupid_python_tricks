@@ -166,3 +166,6 @@ def weakmemoize(f, cache=None):
 memoized = memoize
 weakmemoized = weakmemoize
 __all__ = ['memoize','memoized', 'weakmemoize', 'weakmemoized']
+
+import callable_module
+callable_module.make_me_callable(memoize)

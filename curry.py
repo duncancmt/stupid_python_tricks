@@ -77,3 +77,6 @@ def foo(*args, **kwargs):
     return curry_helper()
 
 __all__ = ['UndefinedArityError', 'curry']
+
+import callable_module
+callable_module.make_me_callable(curry)
