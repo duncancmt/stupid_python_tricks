@@ -7,29 +7,12 @@ have been warned.
 WARNING WARNING WARNING WARNING WARNING WARNING WARNING
 """
 
-import decorator
 import sys
 import dis
 from threading import local
-from collections import Callable
 from itertools import imap
 
-def decorator_apply(dec, func, args, kwargs):
-    """
-    Decorate a function by preserving the signature even if dec
-    is not a signature-preserving decorator.
-    """
-    return decorator.FunctionMaker.create(
-        func, 'return decorated(%(signature)s)',
-        dict(decorated=dec(func, *args, **kwargs)), __wrapped__=func)
-
-@decorator.decorator
-def decorator_decorator(dec, func, *args, **kwargs):
-    """Decorator for decorators"""
-    if isinstance(func, Callable):
-        return decorator_apply(dec, func, args, kwargs)
-    else:
-        return dec(func, *args, **kwargs)
+from decorator_decorator import decorator_decorator
 
 class OncePerThread(object):
     """OncePerThread is a context manager that ensures that its block is only

@@ -1,26 +1,10 @@
-import decorator
 import warnings
 from weakref import WeakKeyDictionary
 from weakcompoundkey import WeakCompoundKey
-from collections import MutableMapping, Callable
+from collections import MutableMapping
 from threading import RLock
 
-def decorator_apply(dec, func, args, kwargs):
-    """
-    Decorate a function by preserving the signature even if dec
-    is not a signature-preserving decorator.
-    """
-    return decorator.FunctionMaker.create(
-        func, 'return decorated(%(signature)s)',
-        dict(decorated=dec(func, *args, **kwargs)), __wrapped__=func)
-
-@decorator.decorator
-def decorator_decorator(dec, func, *args, **kwargs):
-    """Decorator for decorators"""
-    if isinstance(func, Callable):
-        return decorator_apply(dec, func, args, kwargs)
-    else:
-        return dec(func, *args, **kwargs)
+from decorator_decorator import decorator_decorator
 
 @decorator_decorator
 def memoize(f, cache=None):
