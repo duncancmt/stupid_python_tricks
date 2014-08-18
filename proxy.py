@@ -35,27 +35,43 @@ class BasicProxy(object):
         if name == '_protected_names' or name in self._protected_names:
             return object.__getattribute__(self, name)
 
+        # proxy objects will always have a __doc__, even if one was
+        # not defined. We always defer to the underlying object's
+        # __doc__ in this case.
+        if name == '__doc__':
+            return getattr(self._obj, name)
+
         try:
             retval = object.__getattribute__(self, name)
         except AttributeError:
             retval = getattr(self._obj, name)
-
         return self._munge(name, retval)
 
     def __delattr__(self, name):
-        try:
-            object.__delattr__(self, name)
-        except AttributeError:
+        # proxy objects will always have a __doc__, even if one was
+        # not defined. We always defer to the underlying object's
+        # __doc__ in this case.
+        if name == '__doc__':
             delattr(self._obj, name)
+        else:
+            try:
+                object.__delattr__(self, name)
+            except AttributeError:
+                delattr(self._obj, name)
 
     def __setattr__(self, name, value):
-        try:
-            object.__getattribute__(self, name)
-            # preceeding line insures that 'name' is directly part of self,
-            # not just part of the proxied object
-            object.__setattr__(self, name, value)
-        except AttributeError:
+        # proxy objects will always have a __doc__, even if one was
+        # not defined. We always defer to the underlying object's
+        # __doc__ in this case.
+        if name == '__doc__':
             setattr(self._obj, name, value)
+        else:
+            try:
+                object.__getattribute__(self, name)
+            except AttributeError:
+                setattr(self._obj, name, value)
+            else:
+                object.__setattr__(self, name, value)
 
     #
     # factories
