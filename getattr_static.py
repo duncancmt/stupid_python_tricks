@@ -37,6 +37,12 @@ def _is_type(obj):
 
 def _shadowed_dict(klass):
     dict_attr = type.__dict__["__dict__"]
+    if hasattr(dict_attr, "__objclass__"):
+        objclass_check = lambda d, entry: d.__objclass__ is entry
+    else:
+        # PyPy __dict__ descriptors are 'generic' and lack __objclass__
+        objclass_check = lambda d, entry: not hasattr(d, "__objclass__")
+
     for entry in getmro_static(klass):
         try:
             class_dict = dict_attr.__get__(entry)["__dict__"]
@@ -45,7 +51,7 @@ def _shadowed_dict(klass):
         else:
             if not (type(class_dict) is types.GetSetDescriptorType and
                     class_dict.__name__ == "__dict__" and
-                    class_dict.__objclass__ is entry):
+                    objclass_check(class_dict, entry)):
                 return class_dict
     return _sentinel
 
