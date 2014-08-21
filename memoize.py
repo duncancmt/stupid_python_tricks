@@ -15,10 +15,10 @@
 
 
 import warnings
-from weakref import WeakKeyDictionary
+from weakref import WeakKeyDictionary, WeakValueDictionary
 from weakcompoundkey import WeakCompoundKey
 from collections import MutableMapping
-from threading import RLock
+from threading import Lock, current_thread
 
 from decorator_decorator import decorator_decorator
 
@@ -27,7 +27,8 @@ def memoize(f, cache=None):
     """memoize memoizes its argument.
     Argument references are strongly held, which can lead to memory leaks.
     If you are concerned about this, use the lower-performance weakmemoize.
-    memoize hooks recursions so that you won't overflow the python stack.
+    If the memoized function recurses with the same arguments, instead
+    of overflowing the stack, it will deadlock.
     memoize is intended for use as a decorator. e.g.
 
     @memoize
@@ -52,10 +53,7 @@ def memoize(f, cache=None):
 
     if cache is None:
         cache = {}
-    pending = []
-    lock = RLock()
-    class RecursionException(BaseException):
-        pass
+    pending = WeakValueDictionary()
 
     def memoized(*args, **kwargs):
         try:
@@ -73,25 +71,15 @@ def memoize(f, cache=None):
             if key in cache:
                 return cache[key]
             else:
-                with lock:
-                    if pending:
-                        raise RecursionException(key)
-                    pending.append(key)
-                    while pending:
-                        key = pending[-1]
-                        if key in cache:
-                            pending.pop()
+                my_lock = Lock()
+                with my_lock:
+                    key_lock = pending.setdefault(key, my_lock)
+                    if key_lock is my_lock:
+                        cache[key] = retval = f(*args, **kwargs)
+                        return retval
+                    else:
+                        with key_lock:
                             return cache[key]
-                        else:
-                            args, kwargs = key
-                            try:
-                                cache[key] = retval = f(*args, **dict(kwargs))
-                            except RecursionException as e:
-                                assert len(e.args) == 1
-                                pending.append(e.args[0])
-                            else:
-                                pending.pop()
-                    return retval
 
         else:
             warnings.warn("Unable to memoize: unhashable argument")
@@ -104,7 +92,8 @@ def weakmemoize(f, cache=None):
     Argument references are weakly held to prevent memory leaks.
     There is a substantial performance penalty to how weakmemoize holds its references.
     If you are concerned about this, use the higher-performance memoize.
-    weakmemoize hooks recursions so that you won't overflow the python stack.
+    If the memoized function recurses with the same arguments, instead
+    of overflowing the stack, it will deadlock.
     weakmemoize is intended for use as a decorator. e.g.
 
     @weakmemoize
@@ -131,10 +120,7 @@ def weakmemoize(f, cache=None):
 
     if cache is None:
         cache = WeakKeyDictionary()
-    pending = []
-    lock = RLock()
-    class RecursionException(BaseException):
-        pass
+    pending = WeakValueDictionary()
 
     def weakmemoized(*args, **kwargs):
         try:
@@ -153,25 +139,15 @@ def weakmemoize(f, cache=None):
             if key in cache:
                 return cache[key]
             else:
-                with lock:
-                    if pending:
-                        raise RecursionException(key)
-                    pending.append(key)
-                    while pending:
-                        key = pending[-1]
-                        if key in cache:
-                            pending.pop()
+                my_lock = Lock()
+                with my_lock:
+                    key_lock = pending.setdefault(key, my_lock)
+                    if key_lock is my_lock:
+                        cache[key] = retval = f(*args, **kwargs)
+                        return retval
+                    else:
+                        with key_lock:
                             return cache[key]
-                        else:
-                            args, kwargs = key
-                            try:
-                                cache[key] = retval = f(*args, **dict(kwargs))
-                            except RecursionException as e:
-                                assert len(e.args) == 1
-                                pending.append(e.args[0])
-                            else:
-                                pending.pop()
-                    return retval
 
         else:
             warnings.warn("Unable to memoize: unable to hash or weak reference argument")
