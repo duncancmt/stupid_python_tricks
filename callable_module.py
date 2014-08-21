@@ -47,4 +47,7 @@ def make_me_callable(main_fn):
 
 __all__ = ['make_me_callable']
 
+# TODO: this proxy approach makes reload(foo) where foo is a callable
+# module fail.
+
 make_module_callable(make_me_callable, sys.modules[__name__])
