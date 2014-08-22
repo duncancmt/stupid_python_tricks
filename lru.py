@@ -18,6 +18,7 @@ from collections import MutableMapping
 from threading import RLock
 from itertools import imap
 from weakref import ref
+from copy import deepcopy
 
 class LRUDict(MutableMapping):
     """Adapted from ActiveState recipe 578078"""
@@ -33,7 +34,7 @@ class LRUDict(MutableMapping):
         self.misses = 0
         self.lock = RLock()
         self.cache = {}
-        self.cache.update(*args, **kwargs)
+        self.update(*args, **kwargs)
 
     def _make_link(self, key, value):
         sentinel = self.sentinel
@@ -144,18 +145,24 @@ class LRUDict(MutableMapping):
             self.maxsize = newsize
 
     def __iter__(self):
-        PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
-        for link in self.cache:
-            yield link[KEY]
+        return self.cache.iterkeys()
 
     def __len__(self):
         return len(self.cache)
 
     def __repr__(self):
-        PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         return "%s.%s(%s)" % (type(self).__module__,
                               type(self).__name__,
                               repr(dict(self.iteritems())))
+
+    def __copy__(self):
+        return type(self)(self.maxsize, self.iteritems())
+
+    def __deepcopy__(self, memo):
+        return type(self)(self.maxsize,
+                          imap(lambda (k,v): (deepcopy(k, memo), deepcopy(v, memo)),
+                               self.iteritems()))
+
 
 
 class IterationGuard(object):
@@ -193,7 +200,6 @@ class WeakKeyLRUDict(LRUDict):
     Patterned after weakref.WeakKeyDictionary, and much code taken from there."""
     __slots__ = LRUDict.__slots__ + ["_remove", "_pending_removals", "_iterating"]
     def __init__(self, *args, **kwargs):
-        super(WeakKeyLRUDict, self).__init__(*args, **kwargs)
         def remove(k, selfref=ref(self)):
             self = selfref()
             if self is not None:
@@ -208,6 +214,7 @@ class WeakKeyLRUDict(LRUDict):
         self._remove = remove
         self._pending_removals = []
         self._iterating = set()
+        super(WeakKeyLRUDict, self).__init__(*args, **kwargs)
 
     def _commit_removals(self):
         # NOTE: We don't need to call this method before mutating the dict,
