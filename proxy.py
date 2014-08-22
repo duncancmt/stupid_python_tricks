@@ -454,7 +454,7 @@ class DifficultProxy(BasicProxy):
                 for klass in cls.__mro__:
                     try:
                         namespace[name] = klass.__dict__['_descriptor_proxy_class'](attr, name)
-                    except AttributeError, KeyError:
+                    except (AttributeError, KeyError):
                         continue
                     else:
                         break
@@ -484,7 +484,13 @@ class Proxy(DifficultProxy):
 
 class BetterDescriptorProxy(DescriptorProxy):
     def _proxy__get__(self, name, instance, owner):
-        return self._obj.__get__(instance, owner)
+        try:
+            return self._obj.__get__(instance, owner)
+        except TypeError as e:
+            if len(e.args) == 1 \
+               and e.args[0].startswith('descriptor'):
+                return super(BetterDescriptorProxy, self)._proxy__get__(name, instance, owner)
+            raise
 
     def _proxy__set__(self, name, instance, value):
         return self._obj.__set__(instance._obj, value)
