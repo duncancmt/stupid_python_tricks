@@ -17,7 +17,8 @@
 import threading
 
 import memoize
-from localdata import LocalList, LocalDict
+from localdata import LocalList, LocalWrapper
+from lru import LRUDict
 from decorator_decorator import decorator_decorator
 
 @decorator_decorator
@@ -39,9 +40,7 @@ def shadowstack(f):
     class RecursionException(BaseException):
         pass
 
-    # TODO: we basically memoize this function while we're running. I'd like
-    # better asymptotic memory usage than that.
-    cache = LocalDict()
+    cache = LocalWrapper(LRUDict(0))
     f = memoize(f, cache)
     pending = LocalList()
 
@@ -57,10 +56,10 @@ def shadowstack(f):
             # We don't catch TypeError because if the arguments are unhashable,
             # we'll just spin forever.
         else:
-            pending.append((args, kwargs))
+            pending.append([(args, kwargs), 0])
             try:
                 while pending:
-                    args, kwargs = pending[-1]
+                    args, kwargs = pending[-1][0]
 
                     try:
                         retval = f(*args, **kwargs)
@@ -68,13 +67,16 @@ def shadowstack(f):
                         assert len(e.args) == 2
                         args, kwargs = e.args
                         del e
-                        pending.append((args, kwargs))
+                        pending[-1][1] += 1
+                        cache.maxsize = max(cache.maxsize, pending[-1][1])
+                        pending.append([(args, kwargs), 0])
                     else:
                         pending.pop()
                 return retval
             finally:
                 del pending[:]
                 cache.clear()
+                cache.maxsize = 0
     return shadowstacked
 
 __all__ = ['shadowstack']
