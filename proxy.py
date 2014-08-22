@@ -17,6 +17,7 @@
 from abc import ABCMeta
 
 from getattr_static import *
+from decorator_decorator import decorates
 
 # TODO: this doesn't work: `cls.meth(proxy, *args, **kwargs)` when proxy is a proxy for an object of type cls
 class BasicProxy(object):
@@ -191,10 +192,12 @@ class BasicProxy(object):
         """Load all relevant special methods into namespace in preparation for
         creating the proxy class"""
         def make_method(name):
+            # we call getattr_static here to get the unbound method
+            @decorates(getattr_static(objclass, name))
             def method(self, *args, **kw):
                 # _special_names are *all* methods, they *must not* be munged to descriptors
-                meth = getattr(self._obj, name)
-                return self._munge(name, meth)(*args, **kw)
+                # we call getattr here to get the bound method of the original object
+                return self._munge(name, getattr(self._obj, name))(*args, **kw)
             return method
         
         for name in cls._special_names:
