@@ -19,63 +19,62 @@ from threading import local
 from collections import MutableSequence, MutableMapping
 
 class LocalData(object):
-    __slots__ = ['local_storage', 'initial_contents']
+    __slots__ = ['local_storage', 'prototype']
+    def __init__(self, prototype):
+        self.local_storage = local()
+        self.prototype = prototype
 
     @property
-    def underlying(self):
+    def _obj(self):
         try:
-            return self.local_storage.underlying
+            return self.local_storage._obj
         except AttributeError:
-            self.underlying = copy(self.initial_contents)
-            return self.underlying
-    @underlying.setter
-    def underlying(self, value):
-        try:
-            self.local_storage.underlying = value
-        except AttributeError:
-            self.local_storage = local()
-            self.underlying = value
-    @underlying.deleter
-    def underlying(self):
-        del self.local_storage.underlying
+            self.local_storage._obj = copy(self.prototype)
+            return self._obj
+    @_obj.setter
+    def _obj(self, value):
+        self.local_storage._obj = value
+    @_obj.deleter
+    def _obj(self):
+        del self.local_storage._obj
 
 
 class LocalList(LocalData, MutableSequence):
     """A mutable sequence object with thread-local contents"""
-    __slots__ = ['local_storage', 'initial_contents']
+    __slots__ = ['local_storage', 'prototype']
 
     def __init__(self, iterable=()):
-        self.initial_contents = list(iterable)
+        super(LocalList, self).__init__(list(iterable))
 
     def __getitem__(self, key):
-        return self.underlying[key]
+        return self._obj[key]
     def __setitem__(self, key, value):
-        self.underlying[key] = value
+        self._obj[key] = value
     def __delitem__(self, key):
-        del self.underlying[key]
+        del self._obj[key]
     def __len__(self):
-        return len(self.underlying)
+        return len(self._obj)
     def insert(self, index, object):
-        self.underlying.insert(index, object)
+        self._obj.insert(index, object)
 
 
 class LocalDict(LocalData, MutableMapping):
     """A mutable mapping object with thread-local contents"""
-    __slots__ = ['local_storage', 'initial_contents']
+    __slots__ = ['local_storage', 'prototype']
 
     def __init__(self, *args, **kwargs):
-        self.initial_contents = dict(*args, **kwargs)
+        super(LocalDict, self).__init__(dict(*args, **kwargs))
 
     def __getitem__(self, key):
-        return self.underlying[key]
+        return self._obj[key]
     def __setitem__(self, key, value):
-        self.underlying[key] = value
+        self._obj[key] = value
     def __delitem__(self, key):
-        del self.underlying[key]
+        del self._obj[key]
     def __iter__(self):
-        return iter(self.underlying)
+        return iter(self._obj)
     def __len__(self):
-        return len(self.underlying)
+        return len(self._obj)
 
 
 __all__ = ['LocalList', 'LocalDict']
