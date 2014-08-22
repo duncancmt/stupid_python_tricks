@@ -17,6 +17,7 @@
 from copy import copy
 from threading import local
 from collections import MutableSequence, MutableMapping
+from proxy import BetterProxy
 
 class LocalData(object):
     __slots__ = ['local_storage', 'prototype']
@@ -77,4 +78,20 @@ class LocalDict(LocalData, MutableMapping):
         return len(self._obj)
 
 
-__all__ = ['LocalList', 'LocalDict']
+class LocalWrapper(LocalData, BetterProxy):
+    """LocalWrapper makes an object copy itself for each thread it's accessed
+    from.
+
+    Objects are copied through the normal copy.copy mechanism. This creates
+    shallow copies. All threads get a unique copy and all threads copies are
+    distinct from the prototype passed to LocalWrapper.
+
+    Mutating the prototype after passing it to LocalWrapper results in strange
+    behavior. Don't do it. If you have to mutate the original object, doing
+    something like LocalWrapper(copy.copy(prototype)) will be much safer.
+    """
+    local_storage = None
+    prototype = None
+
+
+__all__ = ['LocalList', 'LocalDict', 'LocalWrapper']
