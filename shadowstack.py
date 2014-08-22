@@ -14,11 +14,7 @@
 # with stupid_python_tricks.  If not, see <http://www.gnu.org/licenses/>.
 
 
-import threading
-
-import memoize
-from localdata import LocalList, LocalWrapper
-from lru import LRUDict
+from localdata import LocalList
 from decorator_decorator import decorator_decorator
 
 @decorator_decorator
@@ -28,6 +24,8 @@ def shadowstack(f):
     tail-recursive, but are naturally expressed through recursion.
     This will not optimize the memory usage of your program. It only keeps
     python's natural stack from overflowing.
+    If you want to optimize the memory usage of your program, rewrite
+    it so that it is tail-recursive and then use the tco module.
     For a single recursion, the function may be called multiple time with the
     same set of arguments. This is especially true if the function is multiply
     recursive.
@@ -40,26 +38,21 @@ def shadowstack(f):
     class RecursionException(BaseException):
         pass
 
-    cache = LocalWrapper(LRUDict(0))
-    f = memoize(f, cache)
     pending = LocalList()
 
     def shadowstacked(*args, **kwargs):
         if pending:
-            # This code is bad because it breaks the abstraction barrier on
-            # memoize, but I couldn't figure out how to expose an interface in
-            # memoize that gives me this functionality.
             try:
-                return cache[(args, frozenset(kwargs.iteritems()))]
+                return pending[-1][2][(args, frozenset(kwargs.iteritems()))]
             except KeyError:
                 raise RecursionException(args, kwargs)
             # We don't catch TypeError because if the arguments are unhashable,
             # we'll just spin forever.
         else:
-            pending.append([(args, kwargs), 0])
+            pending.append((args, kwargs, {}))
             try:
                 while pending:
-                    args, kwargs = pending[-1][0]
+                    args, kwargs = pending[-1][:2]
 
                     try:
                         retval = f(*args, **kwargs)
@@ -67,16 +60,14 @@ def shadowstack(f):
                         assert len(e.args) == 2
                         args, kwargs = e.args
                         del e
-                        pending[-1][1] += 1
-                        cache.maxsize = max(cache.maxsize, pending[-1][1])
-                        pending.append([(args, kwargs), 0])
+                        pending.append((args, kwargs, {}))
                     else:
                         pending.pop()
+                        if pending:
+                            pending[-1][2][(args, frozenset(kwargs.iteritems()))] = retval
                 return retval
             finally:
                 del pending[:]
-                cache.clear()
-                cache.maxsize = 0
     return shadowstacked
 
 __all__ = ['shadowstack']
