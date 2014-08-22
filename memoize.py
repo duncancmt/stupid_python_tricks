@@ -58,8 +58,12 @@ def memoize(f, cache=None):
     def memoized(*args, **kwargs):
         try:
             hash(args)
+            for a in kwargs.itervalues():
+                hash(a)
         except TypeError as e:
-            if len(e.args) == 1 and isinstance(e.args[0], basestring) and e.args[0].startswith("unhashable type:"):
+            if len(e.args) == 1 \
+                   and isinstance(e.args[0], basestring) \
+                   and e.args[0].startswith("unhashable type:"):
                 hashable = False
             else:
                 raise
@@ -75,6 +79,10 @@ def memoize(f, cache=None):
                 with my_lock:
                     key_lock = pending.setdefault(key, my_lock)
                     if key_lock is my_lock:
+                        # we get strange (wrong) behavior with
+                        # weakrefs if we hold onto key_lock/my_lock
+                        del key_lock
+                        del my_lock
                         cache[key] = retval = f(*args, **kwargs)
                         return retval
                     else:
@@ -126,9 +134,10 @@ def weakmemoize(f, cache=None):
         try:
             key = WeakCompoundKey(*args, **kwargs)
         except TypeError as e:
-            if len(e.args) == 1 and isinstance(e.args[0], basestring) \
-               and (e.args[0].startswith("unhashable type:") \
-                    or e.args[0].startswith('cannot create weak reference to')):
+            if len(e.args) == 1 \
+                   and isinstance(e.args[0], basestring) \
+                   and (e.args[0].startswith("unhashable type:") \
+                        or e.args[0].startswith('cannot create weak reference to')):
                 hashable = False
             else:
                 raise
@@ -141,8 +150,17 @@ def weakmemoize(f, cache=None):
             else:
                 my_lock = Lock()
                 with my_lock:
+                    # It's OK that this makes a strong reference to
+                    # key. We want key to stick around at least until
+                    # we leave this scope, at which point my_lock will
+                    # be collected and the whole dict entry will be
+                    # freed, potentially taking key with it.
                     key_lock = pending.setdefault(key, my_lock)
                     if key_lock is my_lock:
+                        # we get strange (wrong) behavior with
+                        # weakrefs if we hold onto key_lock/my_lock
+                        del key_lock
+                        del my_lock
                         cache[key] = retval = f(*args, **kwargs)
                         return retval
                     else:
