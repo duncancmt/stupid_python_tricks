@@ -144,7 +144,9 @@ class LRUDict(MutableMapping):
             self.maxsize = newsize
 
     def __iter__(self):
-        return iter(self.cache)
+        PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
+        for link in self.cache:
+            yield link[KEY]
 
     def __len__(self):
         return len(self.cache)
