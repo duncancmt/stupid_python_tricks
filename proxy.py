@@ -53,12 +53,6 @@ class BasicProxy(object):
         if name == '_protected_names' or name in self._protected_names:
             return object.__getattribute__(self, name)
 
-        # proxy objects will always have a __doc__, even if one was
-        # not defined. We always defer to the underlying object's
-        # __doc__ in this case.
-        if name == '__doc__':
-            return getattr(self._obj, name)
-
         try:
             retval = object.__getattribute__(self, name)
         except AttributeError:
@@ -66,30 +60,37 @@ class BasicProxy(object):
         return self._munge(name, retval)
 
     def __delattr__(self, name):
-        # proxy objects will always have a __doc__, even if one was
-        # not defined. We always defer to the underlying object's
-        # __doc__ in this case.
-        if name == '__doc__':
+        try:
+            object.__delattr__(self, name)
+        except AttributeError:
             delattr(self._obj, name)
-        else:
-            try:
-                object.__delattr__(self, name)
-            except AttributeError:
-                delattr(self._obj, name)
 
     def __setattr__(self, name, value):
-        # proxy objects will always have a __doc__, even if one was
-        # not defined. We always defer to the underlying object's
-        # __doc__ in this case.
-        if name == '__doc__':
+        try:
+            object.__getattribute__(self, name)
+        except AttributeError:
             setattr(self._obj, name, value)
         else:
-            try:
-                object.__getattribute__(self, name)
-            except AttributeError:
-                setattr(self._obj, name, value)
-            else:
-                object.__setattr__(self, name, value)
+            object.__setattr__(self, name, value)
+
+    # python automatically defines these methods for all new-style classes, to
+    # avoid shadowing the original object, we must explicitly define these
+    # ourselves.
+    @property
+    def __doc__(self):
+        return self._obj.__doc__
+    def __format__(self, format_spec):
+        return format(self._obj, format_spec)
+    def __hash__(self):
+        return hash(self._obj)
+    def __nonzero__(self):
+        return bool(self._obj)
+    def __repr__(self):
+        return repr(self._obj)
+    def __str__(self):
+        return str(self._obj)
+    def __unicode__(self):
+        return unicode(self._obj)
 
     #
     # factories
@@ -102,20 +103,19 @@ class BasicProxy(object):
     _special_names = frozenset([ '__abs__', '__add__', '__and__', '__call__',
         '__cmp__', '__coerce__', '__complex__', '__contains__', '__delitem__',
         '__delslice__', '__dir__', '__div__', '__divmod__', '__enter__',
-        '__eq__', '__exit__', '__float__', '__floordiv__', '__format__',
-        '__ge__', '__getitem__', '__getslice__', '__gt__', '__hash__',
-        '__hex__', '__iadd__', '__iand__', '__idiv__', '__idivmod__',
-        '__ifloordiv__', '__ilshift__', '__imod__', '__imul__', '__index__',
-        '__int__', '__invert__', '__ior__', '__ipow__', '__irshift__',
-        '__isub__', '__iter__', '__itruediv__', '__ixor__', '__le__', '__len__',
-        '__long__', '__lshift__', '__lt__', '__mod__', '__mul__', '__ne__',
-        '__neg__', '__nonzero__', '__oct__', '__or__', '__pos__', '__pow__',
-        '__radd__', '__rand__', '__rdiv__', '__rdivmod__', '__reduce__',
-        '__reduce_ex__', '__repr__', '__reversed__', '__rfloordiv__',
+        '__eq__', '__exit__', '__float__', '__floordiv__', '__ge__',
+        '__getitem__', '__getslice__', '__gt__', '__hex__', '__iadd__',
+        '__iand__', '__idiv__', '__idivmod__', '__ifloordiv__', '__ilshift__',
+        '__imod__', '__imul__', '__index__', '__int__', '__invert__', '__ior__',
+        '__ipow__', '__irshift__', '__isub__', '__iter__', '__itruediv__',
+        '__ixor__', '__le__', '__len__', '__long__', '__lshift__', '__lt__',
+        '__mod__', '__mul__', '__ne__', '__neg__', '__oct__', '__or__',
+        '__pos__', '__pow__', '__radd__', '__rand__', '__rdiv__', '__rdivmod__',
+        '__reduce__', '__reduce_ex__', '__reversed__', '__rfloordiv__',
         '__rlshift__', '__rmod__', '__rmul__', '__ror__', '__rpow__',
         '__rrshift__', '__rshift__', '__rsub__', '__rtruediv__', '__rxor__',
-        '__setitem__', '__setslice__', '__str__', '__sub__', '__truediv__',
-        '__unicode__', '__xor__', 'next', ])
+        '__setitem__', '__setslice__', '__sub__', '__truediv__', '__xor__',
+        'next', ])
     _protected_names = frozenset([ '_obj', '_munge', '_do_munge', '_munge_cache', ])
     _munge_names = {}
 
