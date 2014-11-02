@@ -168,7 +168,7 @@ class Term(object):
 
     def __nonzero__(self):
         return self != 0
-    
+
     def __hash__(self):
         return hash(self.coeff) ^ hash(self.powers)
 
@@ -232,6 +232,15 @@ class Term(object):
                                  type(self).__name__,
                                  repr(self.coeff),
                                  dict(self.powers))
+    def to_mathematica(self):
+        if self.powers:
+            return str(self.coeff) + "*" + "*".join(imap(lambda (var, power): var + "^" + str(power), self.powers.iteritems()))
+        else:
+            return str(self.coeff)
+    @classmethod
+    def from_mathematica(cls, s):
+        coeff, powers = s.split("*")[0], s.split("*")[1:]
+        return cls(int(coeff), imap(methodcaller("split", "^"), powers))
 
     def __copy__(self):
         return type(self)(self.coeff, self.powers)
@@ -289,7 +298,7 @@ class Polynomial(object):
 
         for a in args:
             put_arg(a)
-            
+
         self.terms = self.combine_terms(terms)
 
 
@@ -300,13 +309,14 @@ class Polynomial(object):
             for i in xrange(len(new_terms)):
                 try:
                     t += new_terms[i]
+                except ArithmeticError:
+                    continue
+                else:
                     del new_terms[i]
                     break
-                except ArithmeticError:
-                    pass
             new_terms.append(t)
         return(frozenset(new_terms))
-        
+
 
     def __pow__(self, other):
         if not isinstance(other, Integral):
@@ -455,6 +465,22 @@ class Polynomial(object):
         except AttributeError:
             return "%s.%s(<uninitialized terms>)" % (type(self).__module__,
                                                      type(self).__name__)
+    def to_mathematica(self):
+        return "+".join(imap(methodcaller("to_mathematica"), self.terms))
+    @classmethod
+    def from_mathematica(cls, s):
+        s = s.replace(" ", "")
+        terms = []
+        last_term_end = 0
+        for i in xrange(len(s)):
+            if s[i] == '-':
+                terms.append(cls.term_class.from_mathematica(s[last_term_end:i]))
+                last_term_end = i
+            if s[i] == '+':
+                terms.append(cls.term_class.from_mathematica(s[last_term_end:i]))
+                last_term_end = i+1
+        return cls(terms)
+
     def __hash__(self):
         return hash(self.terms)
     def __len__(self):
