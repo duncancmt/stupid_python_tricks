@@ -92,6 +92,7 @@ def memoize(f, cache=None):
         else:
             warnings.warn("Unable to memoize: unhashable argument")
             return f(*args, **kwargs)
+    memoized.clear = cache.clear
     return memoized
 
 @decorator_decorator
@@ -170,6 +171,7 @@ def weakmemoize(f, cache=None):
         else:
             warnings.warn("Unable to memoize: unable to hash or weak reference argument")
             return f(*args, **kwargs)
+    weakmemoized.clear = cache.clear
     return weakmemoized
 
 
