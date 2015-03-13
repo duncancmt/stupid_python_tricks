@@ -18,7 +18,7 @@ import warnings
 from weakref import WeakKeyDictionary, WeakValueDictionary
 from weakcompoundkey import WeakCompoundKey
 from collections import MutableMapping
-from threading import Lock, current_thread
+from threading import Lock
 
 from decorator_decorator import decorator_decorator
 
