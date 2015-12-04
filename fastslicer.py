@@ -72,11 +72,27 @@ class FastSlicer(BetterProxy):
         return index
 
     def _check_index(self, index):
-        if ( self.start is not None and index < self.start ) \
-           or index < 0 \
-           or ( self.stop is not None and index >= self.stop ) \
-           or index >= len(self._obj):
-            raise IndexError('Index outside slice bounds')
+        if self.start is None:
+            if index < 0:
+                raise IndexError('Index outside slice bounds')
+        else:
+            if self.start < 0:
+                if index < self.start + len(self._obj):
+                    raise IndexError('Index outside slice bounds')
+            else:
+                if index < self.start:
+                    raise IndexError('Index outside slice bounds')
+
+        if self.stop is None:
+            if index >= len(self._obj):
+                raise IndexError('Index outside slice bounds')
+        else:
+            if self.stop < 0:
+                if index >= self.stop + len(self._obj):
+                    raise IndexError('Index outside slice bounds')
+            else:
+                if index >= self.stop:
+                    raise IndexError('Index outside slice bounds')
 
     def _check_bounds(self, start, stop):
         self._check_index(start)
