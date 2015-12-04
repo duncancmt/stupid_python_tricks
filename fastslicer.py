@@ -45,7 +45,7 @@ class FastSlicer(BetterProxy):
             object.__setattr__(self, 'start', start)
             object.__setattr__(self, 'stop', stop)
 
-    def _get_concrete_index(self, index, default=0):
+    def _get_concrete(self, index, default=0):
         if index is None:
             index = default
         elif index > len(self):
@@ -70,7 +70,7 @@ class FastSlicer(BetterProxy):
             
             return type(self)(self._obj, start=start, stop=stop)
         elif isinstance(key, Integral):
-            key = self._get_concrete_index(key, default=0)
+            key = self._get_concrete(key, default=0)
             return self._obj[key]
         else:
             raise TypeError('Cannot use objects of type %s as indexes' % type(key).__name__)
@@ -86,14 +86,14 @@ class FastSlicer(BetterProxy):
         if isinstance(key, slice):
             if key.step is not None and key.step != 1:
                 raise NotImplementedError('FastSlicer objects do not support step slices')
-            start = self._get_concrete_index(key.start, default=0)
-            stop = self._get_concrete_index(key.stop, default=len(self))
+            start = self._get_concrete(key.start, default=0)
+            stop = self._get_concrete(key.stop, default=len(self))
             if len(value) != stop-start:
                 import warnings
                 warnings.warn('Changing the length of a FastSlicer instance may have unexpected results')
             self._obj[start:stop] = value
         elif isinstance(key, Integral):
-            key = self._get_concrete_index(key, default=0)
+            key = self._get_concrete(key, default=0)
             self._obj[key] = value
         else:
             raise TypeError('Cannot use objects of type %s as indexes' % type(key).__name__)
@@ -111,12 +111,12 @@ class FastSlicer(BetterProxy):
         if isinstance(key, slice):
             if key.step is not None and key.step != 1:
                 raise NotImplementedError('FastSlicer objects do not support step slices')
-            start = self._get_concrete_index(key.start, default=0)
-            stop = self._get_concrete_index(key.stop, default=len(self))
+            start = self._get_concrete(key.start, default=0)
+            stop = self._get_concrete(key.stop, default=len(self))
 
             del self._obj[start:stop]
         elif isinstance(key, Integral):
-            key = self._get_concrete_index(key, default=0)
+            key = self._get_concrete(key, default=0)
             del self._obj[key]
         else:
             raise TypeError('Cannot use objects of type %s as indexes' % type(key).__name__)
