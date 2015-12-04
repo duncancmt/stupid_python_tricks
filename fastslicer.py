@@ -75,13 +75,6 @@ class FastSlicer(BetterProxy):
         else:
             raise TypeError('Cannot use objects of type %s as indexes' % type(key).__name__)
 
-    def __getslice__(self, i, j):
-        if i < 0:
-            raise IndexError('Starting index out of bounds')
-        if j < 0:
-            raise IndexError('Ending index out of bounds')
-        return self.__getitem__(slice(i,j))
-            
     def __setitem__(self, key, value):
         if isinstance(key, slice):
             if key.step is not None and key.step != 1:
@@ -97,13 +90,6 @@ class FastSlicer(BetterProxy):
             self._obj[key] = value
         else:
             raise TypeError('Cannot use objects of type %s as indexes' % type(key).__name__)
-
-    def __setslice__(self, i, j, seq):
-        if i < 0:
-            raise IndexError('Starting index out of bounds')
-        if j < 0:
-            raise IndexError('Ending index out of bounds')
-        return self.__setitem__(slice(i,j), seq)
 
     def __delitem__(self, key):
         import warnings
@@ -121,13 +107,6 @@ class FastSlicer(BetterProxy):
         else:
             raise TypeError('Cannot use objects of type %s as indexes' % type(key).__name__)
 
-    def __delslice__(self, i, j):
-        if i < 0:
-            raise IndexError('Starting index out of bounds')
-        if j < 0:
-            raise IndexError('Ending index out of bounds')
-        return self.__delitem__(slice(i,j))
-        
     def __str__(self):
         return str(self._obj[self.start:self.stop])
 
@@ -136,7 +115,3 @@ class FastSlicer(BetterProxy):
 
     def __bool__(self):
         return len(self) > 0
-
-    # # TODO: implement:
-    # def __reversed__(self):
-    # def __contains__(self, item):
