@@ -85,7 +85,19 @@ class FastSlicer(BetterProxy):
             raise IndexError('Bad range')
 
     def __len__(self):
-        return self.stop - self.start
+        if self.start is None:
+            start = 0
+        else:
+            start = self.start
+        if self.stop is None:
+            stop = len(self._obj)
+        else:
+            stop = self.stop
+        if ( start < 0 and stop >= 0 ) \
+           or ( start >= 0 and stop < 0 ):
+            return len(self._obj) + stop - start
+        else:
+            return stop - start
 
     def __getitem__(self, key):
         if isinstance(key, slice):
