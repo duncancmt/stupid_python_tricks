@@ -26,26 +26,28 @@ class FastSlicer(BetterProxy):
 
     def __init__(self, obj, start=None, stop=None):
         super(FastSlicer, self).__init__(obj)
-        if isinstance(obj, FastSlicer):
-            obj._check_bounds(obj._get_concrete(start, default=0),
-                              obj._get_concrete(stop, default=len(obj)))
+        self._obj = obj
+        if isinstance(self._obj, FastSlicer):
+            self._obj._check_bounds(self._obj._get_concrete(start, default=0),
+                                    self._obj._get_concrete(stop, default=len(self._obj)))
 
-            self._obj = obj._obj
             if start is None:
-                start = obj.start
+                start = self._obj.start
             else:
                 if start < 0:
-                    start += obj.stop
+                    start += self._obj.stop
                 else:
-                    start += obj.start
+                    start += self._obj.start
 
             if stop is None:
-                stop = obj.stop
+                stop = self._obj.stop
             else:
                 if stop < 0:
-                    stop += obj.stop
+                    stop += self._obj.stop
                 else:
-                    stop += obj.start
+                    stop += self._obj.start
+
+            self._obj = self._obj._obj
 
         object.__setattr__(self, 'start', start)
         object.__setattr__(self, 'stop', stop)
