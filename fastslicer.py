@@ -23,7 +23,7 @@ from proxy import BetterProxy
 class FastSlicer(BetterProxy):
     def __new__(cls, obj, start=None, stop=None, *args, **kwargs):
         return super(FastSlicer, cls).__new__(cls, obj, *args, **kwargs)
-    
+
     def __init__(self, obj, start=None, stop=None):
         super(FastSlicer, self).__init__(obj)
         if isinstance(obj, FastSlicer):
