@@ -104,7 +104,10 @@ class FastSlicer(BetterProxy):
             start = self._get_concrete(key.start, default=0)
             stop = self._get_concrete(key.stop, default=len(self))
             self._check_bounds(start, stop)
-            if len(value) != stop-start:
+            try:
+                if len(value) != stop-start:
+                    raise TypeError
+            except TypeError:
                 import warnings
                 warnings.warn('Changing the length of a FastSlicer instance may have unexpected results')
             self._obj[start:stop] = value
