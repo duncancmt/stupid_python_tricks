@@ -169,7 +169,9 @@ class FastSlicer(BetterProxy):
         return str(self._obj[self.start:self.stop])
 
     def __iter__(self):
-        return islice(self._obj, self.start, self.stop)
+        return islice(self._obj,
+                      self._get_concrete(None, default=0),
+                      self._get_concrete(None, default=len(self)))
 
     def __bool__(self):
         return len(self) > 0
