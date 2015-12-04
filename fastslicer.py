@@ -47,8 +47,8 @@ class FastSlicer(BetterProxy):
                 else:
                     stop += obj.start
 
-        object.__setattr__(self, 'start', obj.start)
-        object.__setattr__(self, 'stop', obj.stop)
+        object.__setattr__(self, 'start', start)
+        object.__setattr__(self, 'stop', stop)
 
     def _get_concrete(self, index, default=None):
         if index is None:
