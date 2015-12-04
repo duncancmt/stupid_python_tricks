@@ -16,7 +16,6 @@
 
 from numbers import Integral
 from itertools import islice
-from sys import maxint
 
 from proxy import BetterProxy
 
