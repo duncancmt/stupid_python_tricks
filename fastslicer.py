@@ -27,36 +27,60 @@ class FastSlicer(BetterProxy):
     def __init__(self, obj, start=None, stop=None):
         super(FastSlicer, self).__init__(obj)
         if isinstance(obj, FastSlicer):
+            obj._check_bounds(obj._get_concrete(start, default=0),
+                              obj._get_concrete(stop, default=len(obj)))
+
             self._obj = obj._obj
-            object.__setattr__(self, 'start', obj.start)
-            object.__setattr__(self, 'stop', obj.stop)
-            self.start, self.stop = self._get_concrete_index(start, default=0), \
-                                    self._get_concrete_index(stop, default=len(self))
-        else:
             if start is None:
-                start = 0
+                start = obj.start
+            else:
+                if start < 0:
+                    start += obj.stop
+                else:
+                    start += obj.start
+
             if stop is None:
-                stop = len(obj)
-            if start < 0 or start > len(obj):
-                raise IndexError('Invalid start index')
-            if stop < 0 or stop > len(obj):
-                raise IndexError('Invalid stop index')
+                stop = obj.stop
+            else:
+                if stop < 0:
+                    stop += obj.stop
+                else:
+                    stop += obj.start
 
-            object.__setattr__(self, 'start', start)
-            object.__setattr__(self, 'stop', stop)
+        object.__setattr__(self, 'start', obj.start)
+        object.__setattr__(self, 'stop', obj.stop)
 
-    def _get_concrete(self, index, default=0):
+    def _get_concrete(self, index, default=None):
         if index is None:
-            index = default
-        elif index > len(self):
-            index = len(self)
+            if default is None:
+                return None
+            else:
+                index = default
+
         if index < 0:
-            index += self.stop
-        else:
+            if self.stop is None:
+                index += len(self._obj)
+            elif self.stop < 0:
+                index += len(self._obj) + self.stop
+            else:
+                index += self.stop
+        elif self.start is not None:
             index += self.start
-        if index < self.start or index > self.stop:
-            raise IndexError('Index outside slice bounds')
+
         return index
+
+    def _check_index(self, index):
+        if ( self.start is not None and index < self.start ) \
+           or index < 0 \
+           or ( self.stop is not None and index >= self.stop ) \
+           or index >= len(self._obj):
+            raise IndexError('Index outside slice bounds')
+
+    def _check_bounds(self, start, stop):
+        self._check_index(start)
+        self._check_index(stop-1)
+        if stop < start:
+            raise IndexError('Bad range')
 
     def __len__(self):
         return self.stop - self.start
@@ -65,12 +89,10 @@ class FastSlicer(BetterProxy):
         if isinstance(key, slice):
             if key.step is not None and key.step != 1:
                 raise NotImplementedError('FastSlicer objects do not support step slices')
-            start = self._get_concrete_index(key.start, default=0)
-            stop = self._get_concrete_index(key.stop, default=len(self))
-            
             return type(self)(self._obj, start=start, stop=stop)
         elif isinstance(key, Integral):
             key = self._get_concrete(key, default=0)
+            self._check_index(key)
             return self._obj[key]
         else:
             raise TypeError('Cannot use objects of type %s as indexes' % type(key).__name__)
@@ -81,12 +103,14 @@ class FastSlicer(BetterProxy):
                 raise NotImplementedError('FastSlicer objects do not support step slices')
             start = self._get_concrete(key.start, default=0)
             stop = self._get_concrete(key.stop, default=len(self))
+            self._check_bounds(start, stop)
             if len(value) != stop-start:
                 import warnings
                 warnings.warn('Changing the length of a FastSlicer instance may have unexpected results')
             self._obj[start:stop] = value
         elif isinstance(key, Integral):
             key = self._get_concrete(key, default=0)
+            self._check_index(key)
             self._obj[key] = value
         else:
             raise TypeError('Cannot use objects of type %s as indexes' % type(key).__name__)
@@ -99,10 +123,11 @@ class FastSlicer(BetterProxy):
                 raise NotImplementedError('FastSlicer objects do not support step slices')
             start = self._get_concrete(key.start, default=0)
             stop = self._get_concrete(key.stop, default=len(self))
-
+            self._check_bounds(start, stop)
             del self._obj[start:stop]
         elif isinstance(key, Integral):
             key = self._get_concrete(key, default=0)
+            self._check_index(key)
             del self._obj[key]
         else:
             raise TypeError('Cannot use objects of type %s as indexes' % type(key).__name__)
