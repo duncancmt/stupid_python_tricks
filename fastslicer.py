@@ -17,14 +17,8 @@
 from numbers import Integral
 from itertools import islice
 
-from proxy import BetterProxy
-
-class FastSlicer(BetterProxy):
-    def __new__(cls, obj, start=None, stop=None, *args, **kwargs):
-        return super(FastSlicer, cls).__new__(cls, obj, *args, **kwargs)
-
+class FastSlicer(object):
     def __init__(self, obj, start=None, stop=None):
-        super(FastSlicer, self).__init__(obj)
         self._obj = obj
         if isinstance(self._obj, FastSlicer):
             self._obj._check_bounds(self._obj._get_concrete(start, default=0),
