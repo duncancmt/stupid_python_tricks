@@ -22,6 +22,9 @@ from threading import Lock
 
 from decorator_decorator import decorator_decorator
 
+def format_memo_args(*args, **kwargs):
+    return (args, frozenset(kwargs.iteritems()))
+
 @decorator_decorator
 def memoize(f, cache=None):
     """memoize memoizes its argument.
@@ -57,9 +60,8 @@ def memoize(f, cache=None):
 
     def memoized(*args, **kwargs):
         try:
-            hash(args)
-            for a in kwargs.itervalues():
-                hash(a)
+            key = format_memo_args(*args, **kwargs)
+            hash(key)
         except TypeError as e:
             if len(e.args) == 1 \
                    and isinstance(e.args[0], basestring) \
@@ -68,7 +70,6 @@ def memoize(f, cache=None):
             else:
                 raise
         else:
-            key = (args, frozenset(kwargs.iteritems()))
             hashable = True
 
         if hashable:
@@ -95,6 +96,9 @@ def memoize(f, cache=None):
     memoized.clear = cache.clear
     return memoized
 
+def format_weakmemo_args(*args, **kwargs):
+    return WeakCompoundKey(*args, **kwargs)
+
 @decorator_decorator
 def weakmemoize(f, cache=None):
     """weakmemoize memoizes its argument.
@@ -120,7 +124,7 @@ def weakmemoize(f, cache=None):
     In this case, weakmemoize will use memo_dict to store memoization information."""
     if isinstance(f, (WeakKeyDictionary, # stupid python2 old-style classes
                       MutableMapping)):  # WeakKeyDictionary instances are not instances
-                                         # of MutableMapping, for some asinie reason
+                                         # of MutableMapping, for some asinine reason
         assert cache is None
         @decorator_decorator
         def weakmemoize_with_cache(new_f):
@@ -133,7 +137,7 @@ def weakmemoize(f, cache=None):
 
     def weakmemoized(*args, **kwargs):
         try:
-            key = WeakCompoundKey(*args, **kwargs)
+            key = format_weakmemo_args(*args, **kwargs)
         except TypeError as e:
             if len(e.args) == 1 \
                    and isinstance(e.args[0], basestring) \
@@ -173,7 +177,6 @@ def weakmemoize(f, cache=None):
             return f(*args, **kwargs)
     weakmemoized.clear = cache.clear
     return weakmemoized
-
 
 memoized = memoize
 weakmemoized = weakmemoize
