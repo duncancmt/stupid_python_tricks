@@ -46,15 +46,14 @@ class Wheel(object):
 
     class __metaclass__(type):
         def __iter__(cls):
-            # TODO: because we don't cache the most immediate result,
-            # this produces lots of unnecessary recursion
-            yield cls(1, (1,))
-            for prime, wheel in izip(primes(), cls):
-                yield cls(prime*wheel.primorial,
-                          tuple(ifilter(lambda x: x % prime,
-                                        ( i+j*wheel.primorial
-                                          for j in xrange(prime)
-                                          for i in wheel.spokes ) )))
+            last = cls(1, (1,))
+            for prime in primes():
+                yield last
+                last = cls(prime * last.primorial,
+                           tuple(ifilter(lambda x: x % prime,
+                                         ( i + j * last.primorial
+                                           for j in xrange(prime)
+                                           for i in last.spokes ) )))
 
     def roll(self, roots):
         root = None
