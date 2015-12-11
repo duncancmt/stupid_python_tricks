@@ -33,15 +33,12 @@ def nth(n, stream):
 
 
 class Wheel(object):
-    __slots__ = [ '_modulus', '_spokes_iter', '_spokes_cache', '_lock' ]
+    __slots__ = [ 'modulus', '_spokes_iter', '_spokes_cache', '_lock' ]
     def __init__(self, modulus, spokes_iter):
-        self._modulus = modulus
+        self.modulus = modulus
         self._spokes_iter = spokes_iter
         self._spokes_cache = []
         self._lock = Lock()
-
-    def __len__(self):
-        return self._modulus
 
     @property
     def spokes(self):
@@ -64,17 +61,18 @@ class Wheel(object):
     def __iter__(self):
         # TODO: make this slightly more efficient
         return ( n + s
-                 for s in count(0, len(self))
+                 for s in count(self.modulus, self.modulus)
                  for n in self.spokes )
 
     class __metaclass__(type):
         def __iter__(cls):
             def close_over(prime, last):
-                return cls(prime * len(last),
+                modulus = last.modulus
+                return cls(prime * modulus,
                            ( k
                              for i in xrange(prime)
                              for j in last.spokes
-                             for k in (i * len(last) + j,)
+                             for k in (i * modulus + j,)
                              if k % prime ))
 
             last = cls(1, iter((1,)))
@@ -85,7 +83,7 @@ class Wheel(object):
     def __str__(self):
         return "<%s.%s %d %d>" % (__name__,
                                   type(self).__name__,
-                                  len(self),
+                                  self.modulus,
                                   id(self))
 
 
@@ -109,7 +107,7 @@ def fixed_wheel(index):
     # roll the wheel and filter the results
     def roll(wheel, roots):
         spokes_set = frozenset(wheel.spokes)
-        modulus = len(wheel)
+        modulus = wheel.modulus
 
         root = None
         old_roots = set()
@@ -121,10 +119,10 @@ def fixed_wheel(index):
         del old_roots
         del root
 
+        pop = roots.pop
         for p in wheel:
-            if p in roots:
-                r = roots[p]
-                del roots[p]
+            r = pop(p, False)
+            if r:
                 x = p + 2*r
                 while x in roots or (x % modulus) not in spokes_set:
                     x += 2*r
