@@ -34,23 +34,24 @@ def nth(n, stream):
 
 
 class Wheel(object):
-    __slots__ = [ '_primorial', '_spokes_iter', '_spokes_set', '_spokes_cache', '_lock' ]
+    __slots__ = [ '_primorial', '_spokes_iter', '_spokes_cache', '_spokes_set', '_lock' ]
     def __init__(self, primorial, spokes_iter):
         self._primorial = primorial
+        self._spokes_cache = [next(spokes_iter)]
         self._spokes_iter = spokes_iter
-        self._spokes_cache = []
+        self._spokes_set = set(self._spokes_cache)
         self._lock = Lock()
 
     def __len__(self):
         return self._primorial
 
-    def __contains__(self, i):
-        # TODO: make more lazy
-        try:
-            return i in self._spokes_set
-        except AttributeError:
-            self._spokes_set = frozenset(self.spokes)
-            return i in self
+    def __contains__(self, elem):
+        elem %= len(self)
+        if elem > self._spokes_cache[-1]:
+            it = iter(self.spokes)
+            while elem > self._spokes_cache[-1]:
+                next(it)
+        return elem in self._spokes_set
 
     @property
     def spokes(self):
@@ -67,6 +68,7 @@ class Wheel(object):
                 except StopIteration:
                     break
                 self._spokes_cache.append(yld)
+                self._spokes_set.add(yld)
             i += 1
             yield yld
 
@@ -106,7 +108,7 @@ class Wheel(object):
         for root in roots.iterkeys():
             # TODO: try to avoid member access here. maybe this whole
             # section is unnecessary?
-            if root % len(self) not in self:
+            if root not in self:
                 old_roots.add(root)
         for root in sorted(old_roots):
             del roots[root]
@@ -118,7 +120,7 @@ class Wheel(object):
                 r = roots[p]
                 del roots[p]
                 x = p + 2*r
-                while x in roots or (x % len(self)) not in self:
+                while x in roots or x not in self:
                     x += 2*r
                 roots[x] = r
             else:
