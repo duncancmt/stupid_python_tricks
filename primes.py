@@ -1,5 +1,6 @@
-from itertools import ifilter, izip, cycle, count, chain
+from itertools import ifilter, count, chain
 from operator import mul
+from threading import Lock
 
 def simple():
     """A simple prime generator using the Sieve of Eratosthenes.
@@ -33,27 +34,71 @@ def nth(n, stream):
 
 
 class Wheel(object):
-    __slots__ = [ 'primorial', 'spokes', 'spokes_set' ]
-    def __init__(self, primorial, spokes):
-        self.primorial = primorial
-        self.spokes = spokes
-        self.spokes_set = frozenset(spokes)
+    __slots__ = [ '_primorial', '_spokes_iter', '_spokes_set', '_spokes_cache', '_lock' ]
+    def __init__(self, primorial, spokes_iter):
+        self._primorial = primorial
+        self._spokes_iter = spokes_iter
+        self._spokes_cache = []
+        self._lock = Lock()
+
+    def __len__(self):
+        return self._primorial
+
+    def __contains__(self, i):
+        # TODO: make more lazy
+        try:
+            return i in self._spokes_set
+        except AttributeError:
+            self._spokes_set = frozenset(self.spokes)
+            return i in self
+
+    @property
+    def spokes(self):
+        i = 0
+        while True:
+            while i < len(self._spokes_cache):
+                yield self._spokes_cache[i]
+                i += 1
+            with self._lock:
+                if i != len(self._spokes_cache):
+                    continue
+                try:
+                    yld = next(self._spokes_iter)
+                except StopIteration:
+                    break
+                self._spokes_cache.append(yld)
+            i += 1
+            yield yld
 
     def __iter__(self):
         return ( n + s
-                 for s in count(0, self.primorial)
+                 for s in count(0, len(self))
                  for n in self.spokes )
+
+    @property
+    def bigger(self):
+        # TODO: drop references to parent in hopes that it will get
+        # collected
+        prime = nth(1, self)
+        return type(self)(prime * len(self),
+                          ifilter(lambda x: x % prime,
+                                  ( i + j * len(self)
+                                    for j in xrange(prime)
+                                    for i in self.spokes ) ))
 
     class __metaclass__(type):
         def __iter__(cls):
-            last = cls(1, (1,))
-            for prime in primes():
+            last = cls(1, iter((1,)))
+            while True:
                 yield last
-                last = cls(prime * last.primorial,
-                           tuple(ifilter(lambda x: x % prime,
-                                         ( i + j * last.primorial
-                                           for j in xrange(prime)
-                                           for i in last.spokes ) )))
+                last = last.bigger
+
+    def __str__(self):
+        return "<%s.%s %d %d>" % (__name__,
+                                  type(self).__name__,
+                                  len(self),
+                                  id(self))
+
 
     def roll(self, roots):
         root = None
@@ -61,7 +106,7 @@ class Wheel(object):
         for root in roots.iterkeys():
             # TODO: try to avoid member access here. maybe this whole
             # section is unnecessary?
-            if root % primorial not in self.spokes_set:
+            if root % len(self) not in self:
                 old_roots.add(root)
         for root in sorted(old_roots):
             del roots[root]
@@ -73,7 +118,7 @@ class Wheel(object):
                 r = roots[p]
                 del roots[p]
                 x = p + 2*r
-                while x in roots or (x % self.primorial) not in self.spokes_set:
+                while x in roots or (x % len(self)) not in self:
                     x += 2*r
                 roots[x] = r
             else:
@@ -93,12 +138,11 @@ def fixed_wheel(index):
     # populate roots and yield the small primes
     roots = {}
     def init():
-        for p in take(index, primes()):
+        for p in take(index, simple()):
             roots[p**2] = p
             yield p
     return chain(init(), drop(1, wheel.roll(roots)))
 
-primes = simple
 
 if __name__ == '__main__':
     import sys
