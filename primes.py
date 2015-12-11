@@ -1,5 +1,4 @@
 from itertools import ifilter, count, chain
-from operator import mul
 from threading import Lock
 
 def simple():
