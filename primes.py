@@ -33,6 +33,7 @@ def nth(n, stream):
 
 
 class Wheel(object):
+    __slots__ = [ 'primorial', 'spokes', 'spokes_set' ]
     def __init__(self, primorial, spokes):
         self.primorial = primorial
         self.spokes = spokes
