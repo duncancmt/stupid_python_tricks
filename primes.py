@@ -31,39 +31,52 @@ def nth(n, stream):
     except StopIteration:
         raise IndexError("Can't get element off the end of generator")
 
-def wheels():
-    yield (1, [1])
-    for prime, (primorial, wheel) in izip(primes(), wheels()):
-        yield (prime*primorial, filter(lambda x: x % prime,
-                                       ( i+j*primorial
-                                         for j in xrange(prime)
-                                         for i in wheel ) ))
 
-def roll_wheel(primorial, wheel, roots):
+class Wheel(object):
+    def __init__(self, primorial, spokes):
+        self.primorial = primorial
+        self.spokes = spokes
+        self.spokes_set = frozenset(spokes)
+    def __iter__(self):
+        return ( n + s
+                 for s in count(0, self.primorial)
+                 for n in self.spokes )
+    class __metaclass__(type):
+        def __iter__(cls):
+            # TODO: because we don't cache the most immediate result,
+            # this produces lots of unnecessary recursion
+            yield cls(1, (1,))
+            for prime, wheel in izip(primes(), cls):
+                yield cls(prime*wheel.primorial,
+                          tuple(ifilter(lambda x: x % prime,
+                                        ( i+j*wheel.primorial
+                                          for j in xrange(prime)
+                                          for i in wheel.spokes ) )))
+
+def roll(wheel, roots):
     root = None
     old_roots = set()
     for root in roots.iterkeys():
-        if root % primorial not in wheel:
+        # TODO: try to avoid member access here. maybe this whole
+        # section is unnecessary?
+        if root % primorial not in wheel.spokes_set:
             old_roots.add(root)
     for root in sorted(old_roots):
         del roots[root]
     del old_roots
     del root
 
-    wheel_set = frozenset(wheel)
-    for s in count(0, primorial):
-        for n in wheel:
-            p = n + s
-            if p in roots:
-                r = roots[p]
-                del roots[p]
-                x = p + 2*r
-                while x in roots or (x % primorial) not in wheel_set:
-                    x += 2*r
-                roots[x] = r
-            else:
-                roots[p**2] = p
-                yield p
+    for p in wheel:
+        if p in roots:
+            r = roots[p]
+            del roots[p]
+            x = p + 2*r
+            while x in roots or (x % wheel.primorial) not in wheel.spokes_set:
+                x += 2*r
+            roots[x] = r
+        else:
+            roots[p**2] = p
+            yield p
 
 def fixed_wheel(index):
     """A very fast wheel+sieve prime generator.
@@ -73,7 +86,7 @@ def fixed_wheel(index):
     """
 
     # precomputation of the wheel
-    primorial, wheel = nth(index, wheels())
+    wheel = nth(index, Wheel)
 
     # populate roots and yield the small primes
     roots = {}
@@ -81,7 +94,7 @@ def fixed_wheel(index):
         for p in take(index, primes()):
             roots[p**2] = p
             yield p
-    return chain(init(), drop(1, roll_wheel(primorial, wheel, roots)))
+    return chain(init(), drop(1, roll(wheel, roots)))
 
 primes = simple
 
