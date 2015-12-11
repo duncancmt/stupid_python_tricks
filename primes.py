@@ -59,7 +59,6 @@ class Wheel(object):
             yield yld
 
     def __iter__(self):
-        # TODO: make this slightly more efficient
         return ( n + s
                  for s in count(self.modulus, self.modulus)
                  for n in self.spokes )
