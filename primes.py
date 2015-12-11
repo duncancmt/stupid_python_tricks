@@ -1,4 +1,4 @@
-from itertools import izip, ifilter, count, chain
+from itertools import izip, ifilter, count, chain, takewhile
 from threading import Lock
 
 def simple():
@@ -100,7 +100,7 @@ def fixed_wheel(index):
     # populate roots and yield the small primes
     roots = {}
     def init(roots):
-        for p in take(index, simple()):
+        for p in takewhile(lambda x: x < wheel.modulus, simple()):
             roots[p**2] = p
             yield p
 
@@ -131,7 +131,7 @@ def fixed_wheel(index):
                 roots[p**2] = p
                 yield p
 
-    return chain(init(roots), drop(1, roll(wheel, roots)))
+    return chain(init(roots), roll(wheel, roots))
 
 
 def variable_wheel():
