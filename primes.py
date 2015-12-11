@@ -1,4 +1,4 @@
-from itertools import imap, ifilter, cycle, count
+from itertools import imap, ifilter, cycle, count, chain
 from operator import mul
 
 def simple():
@@ -25,35 +25,43 @@ def drop(n, stream):
         next(stream)
     return stream
 
-def fixed_wheel(index):
-    """A very fast wheel+sieve prime generator.
+def nth(n, stream):
+    try:
+        return next(take(1, drop(n, stream)))
+    except StopIteration:
+        raise IndexError("Can't get element off the end of generator")
 
-    Adapted from http://stackoverflow.com/q/2211990 with an adjustable
-    wheel size.
-    """
+def wheels():
+    yield (1, [1])
+    small_primes = []
+    for p in primes():
+        small_primes.append(p)
+        primorial = reduce(mul, small_primes)
+        wheel = [ i
+                  for i in xrange(1, primorial+1)
+                  if all(imap(lambda p: i % p, small_primes)) ]
+        yield (primorial, wheel)
 
-    # precomputation of the wheel
-    small_primes = tuple(take(index, simple()))
-    primorial = reduce(mul, small_primes)
-    wheel = [ i
-              for i in xrange(1, primorial+1)
-              if all(imap(lambda p: i % p, small_primes)) ]
+def roll_wheel(primorial, wheel, roots, start):
     skips = [ (wheel[(i + 1) % len(wheel)] - wheel[i]) % primorial
               for i in xrange(len(wheel)) ]
+    if skips == [0]:
+        skips = [1]
+    print primorial, wheel, start, skips
+    start_index = wheel.index(start % primorial)
     wheel = frozenset(wheel)
 
-    # populate roots and yield the small primes
-    roots = {}
-    for p in small_primes:
-        s = p**2
-        if s > small_primes[-1]:
-            roots[s] = p
-        yield p
+    old_roots = set()
+    for root in roots.iterkeys():
+        if root % primorial not in wheel:
+            old_roots.add(root)
+    for root in sorted(old_roots):
+        print "dropping old root %d" % root
+        del roots[root]
+    del old_roots
 
-    # roll the wheel
-    p = 1
-    for incr in cycle(skips):
-        p += incr
+    p = start
+    for incr in drop(start_index, cycle(skips)):
         if p in roots:
             r = roots[p]
             del roots[p]
@@ -64,6 +72,27 @@ def fixed_wheel(index):
         else:
             roots[p**2] = p
             yield p
+        p += incr
+
+def fixed_wheel(index):
+    """A very fast wheel+sieve prime generator.
+
+    Adapted from http://stackoverflow.com/q/2211990 with an adjustable
+    wheel size.
+    """
+
+    # precomputation of the wheel
+    primorial, wheel = nth(index, wheels())
+
+    # populate roots and yield the small primes
+    roots = {}
+    def init():
+        for p in take(index+1, simple()):
+            print "Initializing prime stream with %d" % p
+            roots[p**2] = p
+            yield p
+    return chain(init(), roll_wheel(primorial, wheel, roots, nth(index+1, simple())))
+
 
 
 if __name__ == '__main__':
