@@ -1,4 +1,4 @@
-from itertools import imap, ifilter, cycle, count, chain
+from itertools import ifilter, izip, cycle, count, chain
 from operator import mul
 
 def simple():
@@ -33,44 +33,40 @@ def nth(n, stream):
 
 def wheels():
     yield (1, [1])
-    small_primes = []
-    for p in primes():
-        small_primes.append(p)
-        primorial = reduce(mul, small_primes)
-        wheel = [ i
-                  for i in xrange(1, primorial+1)
-                  if all(imap(lambda p: i % p, small_primes)) ]
-        yield (primorial, wheel)
+    for prime, (primorial, wheel) in izip(primes(), wheels()):
+        yield (prime*primorial, filter(lambda x: x % prime,
+                                       ( i+j*primorial
+                                         for j in xrange(prime)
+                                         for i in wheel ) ))
 
-def roll_wheel(primorial, wheel, roots, start):
-    skips = [ (wheel[(i + 1) % len(wheel)] - wheel[i]) % primorial
-              for i in xrange(len(wheel)) ]
-    if skips == [0]:
-        skips = [1]
-    start_index = wheel.index(start % primorial)
-    wheel = frozenset(wheel)
-
+def roll_wheel(primorial, wheel, roots):
+    print primorial, wheel, roots
+    root = None
     old_roots = set()
     for root in roots.iterkeys():
         if root % primorial not in wheel:
             old_roots.add(root)
     for root in sorted(old_roots):
+        print "dropping old root %d" % root
         del roots[root]
     del old_roots
+    del root
 
-    p = start
-    for incr in drop(start_index, cycle(skips)):
-        if p in roots:
-            r = roots[p]
-            del roots[p]
-            x = p + 2*r
-            while x in roots or (x % primorial) not in wheel:
-                x += 2*r
-            roots[x] = r
-        else:
-            roots[p**2] = p
-            yield p
-        p += incr
+    wheel_set = frozenset(wheel)
+    for s in count(0, primorial):
+        for n in wheel:
+            p = n + s
+            if p in roots:
+                r = roots[p]
+                del roots[p]
+                x = p + 2*r
+                while x in roots or (x % primorial) not in wheel_set:
+                    x += 2*r
+                roots[x] = r
+            else:
+                roots[p**2] = p
+                print "Yielding %d" % p
+                yield p
 
 def fixed_wheel(index):
     """A very fast wheel+sieve prime generator.
@@ -85,12 +81,13 @@ def fixed_wheel(index):
     # populate roots and yield the small primes
     roots = {}
     def init():
-        for p in take(index+1, simple()):
+        for p in take(index, primes()):
+            print "Initializing prime stream with %d" % p
             roots[p**2] = p
             yield p
-    return chain(init(), roll_wheel(primorial, wheel, roots, nth(index+1, simple())))
+    return chain(init(), drop(1, roll_wheel(primorial, wheel, roots)))
 
-
+primes = simple
 
 if __name__ == '__main__':
     import sys
