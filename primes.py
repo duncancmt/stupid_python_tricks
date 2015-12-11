@@ -34,15 +34,15 @@ def nth(n, stream):
 
 
 class Wheel(object):
-    __slots__ = [ '_primorial', '_spokes_iter', '_spokes_cache', '_lock' ]
-    def __init__(self, primorial, spokes_iter):
-        self._primorial = primorial
+    __slots__ = [ '_modulus', '_spokes_iter', '_spokes_cache', '_lock' ]
+    def __init__(self, modulus, spokes_iter):
+        self._modulus = modulus
         self._spokes_iter = spokes_iter
         self._spokes_cache = []
         self._lock = Lock()
 
     def __len__(self):
-        return self._primorial
+        return self._modulus
 
     @property
     def spokes(self):
@@ -71,12 +71,12 @@ class Wheel(object):
     @property
     def bigger(self):
         prime = nth(1, self)
-        primorial = len(self)
-        return type(self)(prime * primorial,
+        modulus = len(self)
+        return type(self)(prime * modulus,
                           ( k
                             for i in xrange(prime)
                             for j in self.spokes
-                            for k in (i * primorial + j,)
+                            for k in (i * modulus + j,)
                             if k % prime ))
 
     class __metaclass__(type):
