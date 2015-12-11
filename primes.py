@@ -1,4 +1,4 @@
-from itertools import ifilter, count, chain
+from itertools import izip, ifilter, count, chain
 from threading import Lock
 
 def simple():
@@ -132,6 +132,40 @@ def fixed_wheel(index):
                 yield p
 
     return chain(init(roots), drop(1, roll(wheel, roots)))
+
+
+def variable_wheel():
+    def roll(wheel, prime, roots):
+        spokes_set = frozenset(wheel.spokes)
+        modulus = wheel.modulus
+
+        root = None
+        old_roots = set()
+        for root in roots.iterkeys():
+            if root % modulus not in spokes_set:
+                old_roots.add(root)
+        for root in sorted(old_roots):
+            del roots[root]
+        del old_roots
+        del root
+
+        pop = roots.pop
+        for p in take(len(spokes_set)*(prime-1), wheel):
+            r = pop(p, False)
+            if r:
+                x = p + 2*r
+                while x in roots or (x % modulus) not in spokes_set:
+                    x += 2*r
+                roots[x] = r
+            else:
+                roots[p**2] = p
+                yield p
+    roots = {}
+    for wheel, prime in izip(Wheel, simple()):
+        for yld in roll(wheel, prime, roots):
+            yield yld
+
+
 
 
 if __name__ == '__main__':
