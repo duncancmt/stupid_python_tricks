@@ -70,14 +70,14 @@ class Wheel(object):
 
     @property
     def bigger(self):
-        # TODO: drop references to parent in hopes that it will get
-        # collected
         prime = nth(1, self)
-        return type(self)(prime * len(self),
-                          ifilter(lambda x: x % prime,
-                                  ( i + j * len(self)
-                                    for j in xrange(prime)
-                                    for i in self.spokes ) ))
+        primorial = len(self)
+        return type(self)(prime * primorial,
+                          ( k
+                            for i in xrange(prime)
+                            for j in self.spokes
+                            for k in (i * primorial + j,)
+                            if k % prime ))
 
     class __metaclass__(type):
         def __iter__(cls):
