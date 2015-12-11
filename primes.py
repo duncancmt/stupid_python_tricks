@@ -67,23 +67,20 @@ class Wheel(object):
                  for s in count(0, len(self))
                  for n in self.spokes )
 
-    @property
-    def bigger(self):
-        prime = nth(1, self)
-        modulus = len(self)
-        return type(self)(prime * modulus,
-                          ( k
-                            for i in xrange(prime)
-                            for j in self.spokes
-                            for k in (i * modulus + j,)
-                            if k % prime ))
-
     class __metaclass__(type):
         def __iter__(cls):
+            def close_over(prime, last):
+                return cls(prime * len(last),
+                           ( k
+                             for i in xrange(prime)
+                             for j in last.spokes
+                             for k in (i * len(last) + j,)
+                             if k % prime ))
+
             last = cls(1, iter((1,)))
-            while True:
+            for prime in simple():
                 yield last
-                last = last.bigger
+                last = close_over(prime, last)
 
     def __str__(self):
         return "<%s.%s %d %d>" % (__name__,
