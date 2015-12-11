@@ -56,30 +56,30 @@ class Wheel(object):
                                           for j in xrange(prime)
                                           for i in wheel.spokes ) )))
 
-def roll(wheel, roots):
-    root = None
-    old_roots = set()
-    for root in roots.iterkeys():
-        # TODO: try to avoid member access here. maybe this whole
-        # section is unnecessary?
-        if root % primorial not in wheel.spokes_set:
-            old_roots.add(root)
-    for root in sorted(old_roots):
-        del roots[root]
-    del old_roots
-    del root
+    def roll(self, roots):
+        root = None
+        old_roots = set()
+        for root in roots.iterkeys():
+            # TODO: try to avoid member access here. maybe this whole
+            # section is unnecessary?
+            if root % primorial not in self.spokes_set:
+                old_roots.add(root)
+        for root in sorted(old_roots):
+            del roots[root]
+        del old_roots
+        del root
 
-    for p in wheel:
-        if p in roots:
-            r = roots[p]
-            del roots[p]
-            x = p + 2*r
-            while x in roots or (x % wheel.primorial) not in wheel.spokes_set:
-                x += 2*r
-            roots[x] = r
-        else:
-            roots[p**2] = p
-            yield p
+        for p in self:
+            if p in roots:
+                r = roots[p]
+                del roots[p]
+                x = p + 2*r
+                while x in roots or (x % self.primorial) not in self.spokes_set:
+                    x += 2*r
+                roots[x] = r
+            else:
+                roots[p**2] = p
+                yield p
 
 def fixed_wheel(index):
     """A very fast wheel+sieve prime generator.
@@ -97,7 +97,7 @@ def fixed_wheel(index):
         for p in take(index, primes()):
             roots[p**2] = p
             yield p
-    return chain(init(), drop(1, roll(wheel, roots)))
+    return chain(init(), drop(1, wheel.roll(roots)))
 
 primes = simple
 
