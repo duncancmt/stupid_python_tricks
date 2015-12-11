@@ -47,7 +47,6 @@ def roll_wheel(primorial, wheel, roots, start):
               for i in xrange(len(wheel)) ]
     if skips == [0]:
         skips = [1]
-    print primorial, wheel, start, skips
     start_index = wheel.index(start % primorial)
     wheel = frozenset(wheel)
 
@@ -56,7 +55,6 @@ def roll_wheel(primorial, wheel, roots, start):
         if root % primorial not in wheel:
             old_roots.add(root)
     for root in sorted(old_roots):
-        print "dropping old root %d" % root
         del roots[root]
     del old_roots
 
@@ -88,7 +86,6 @@ def fixed_wheel(index):
     roots = {}
     def init():
         for p in take(index+1, simple()):
-            print "Initializing prime stream with %d" % p
             roots[p**2] = p
             yield p
     return chain(init(), roll_wheel(primorial, wheel, roots, nth(index+1, simple())))
