@@ -34,24 +34,15 @@ def nth(n, stream):
 
 
 class Wheel(object):
-    __slots__ = [ '_primorial', '_spokes_iter', '_spokes_cache', '_spokes_set', '_lock' ]
+    __slots__ = [ '_primorial', '_spokes_iter', '_spokes_cache', '_lock' ]
     def __init__(self, primorial, spokes_iter):
         self._primorial = primorial
-        self._spokes_cache = [next(spokes_iter)]
         self._spokes_iter = spokes_iter
-        self._spokes_set = set(self._spokes_cache)
+        self._spokes_cache = []
         self._lock = Lock()
 
     def __len__(self):
         return self._primorial
-
-    def __contains__(self, elem):
-        elem %= len(self)
-        if elem > self._spokes_cache[-1]:
-            it = iter(self.spokes)
-            while elem > self._spokes_cache[-1]:
-                next(it)
-        return elem in self._spokes_set
 
     @property
     def spokes(self):
@@ -68,11 +59,11 @@ class Wheel(object):
                 except StopIteration:
                     break
                 self._spokes_cache.append(yld)
-                self._spokes_set.add(yld)
             i += 1
             yield yld
 
     def __iter__(self):
+        # TODO: make this slightly more efficient
         return ( n + s
                  for s in count(0, len(self))
                  for n in self.spokes )
@@ -102,31 +93,6 @@ class Wheel(object):
                                   id(self))
 
 
-    def roll(self, roots):
-        root = None
-        old_roots = set()
-        for root in roots.iterkeys():
-            # TODO: try to avoid member access here. maybe this whole
-            # section is unnecessary?
-            if root not in self:
-                old_roots.add(root)
-        for root in sorted(old_roots):
-            del roots[root]
-        del old_roots
-        del root
-
-        for p in self:
-            if p in roots:
-                r = roots[p]
-                del roots[p]
-                x = p + 2*r
-                while x in roots or x not in self:
-                    x += 2*r
-                roots[x] = r
-            else:
-                roots[p**2] = p
-                yield p
-
 def fixed_wheel(index):
     """A very fast wheel+sieve prime generator.
 
@@ -139,11 +105,39 @@ def fixed_wheel(index):
 
     # populate roots and yield the small primes
     roots = {}
-    def init():
+    def init(roots):
         for p in take(index, simple()):
             roots[p**2] = p
             yield p
-    return chain(init(), drop(1, wheel.roll(roots)))
+
+    # roll the wheel and filter the results
+    def roll(wheel, roots):
+        spokes_set = frozenset(wheel.spokes)
+        modulus = len(wheel)
+
+        root = None
+        old_roots = set()
+        for root in roots.iterkeys():
+            if root % modulus not in spokes_set:
+                old_roots.add(root)
+        for root in sorted(old_roots):
+            del roots[root]
+        del old_roots
+        del root
+
+        for p in wheel:
+            if p in roots:
+                r = roots[p]
+                del roots[p]
+                x = p + 2*r
+                while x in roots or (x % modulus) not in spokes_set:
+                    x += 2*r
+                roots[x] = r
+            else:
+                roots[p**2] = p
+                yield p
+
+    return chain(init(roots), drop(1, roll(wheel, roots)))
 
 
 if __name__ == '__main__':
