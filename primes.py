@@ -38,10 +38,12 @@ class Wheel(object):
         self.primorial = primorial
         self.spokes = spokes
         self.spokes_set = frozenset(spokes)
+
     def __iter__(self):
         return ( n + s
                  for s in count(0, self.primorial)
                  for n in self.spokes )
+
     class __metaclass__(type):
         def __iter__(cls):
             # TODO: because we don't cache the most immediate result,
