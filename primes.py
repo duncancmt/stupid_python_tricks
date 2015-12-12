@@ -73,26 +73,27 @@ class Wheel(object):
         return elem in self._spokes_set
 
 
-    def update_caution(self, caution, roots):
-        root = roots[caution]
-        if root not in self:
-            del roots[caution]
+    def update_sieve(self, hazard, sieve):
+        prime = sieve[hazard]
+        if prime not in self:
+            del sieve[hazard]
         else:
-            while caution in roots \
-                  or caution not in self:
-                caution += 2*root
-            roots[caution] = root
+            while hazard in sieve \
+                  or hazard not in self:
+                hazard += 2*prime
+            sieve[hazard] = prime
 
-    def update_roots(self, roots):
+
+    def roll(self, cycles, sieve):
+        hazard = None
         to_advance = set()
-        for caution in roots.iterkeys():
-            if caution not in self:
-                to_advance.add(caution)
-        for caution in sorted(to_advance):
-            self.update_caution(caution, roots)
-
-    def roll(self, cycles, roots):
-        self.update_roots(roots)
+        for hazard in sieve.iterkeys():
+            if hazard not in self:
+                to_advance.add(hazard)
+        for hazard in sorted(to_advance):
+            self.update_sieve(hazard, sieve)
+        del to_advance
+        del hazard
 
         modulus = self.modulus
         if cycles is not None:
@@ -106,11 +107,12 @@ class Wheel(object):
         for cycle in cycler:
             for spoke in self:
                 candidate = cycle + spoke
-                if candidate in roots:
-                    self.update_caution(candidate, roots)
+                if candidate in sieve:
+                    self.update_sieve(candidate, sieve)
                 else:
-                    roots[candidate**2] = candidate
+                    sieve[candidate**2] = candidate
                     yield candidate
+
 
     class __metaclass__(type):
         def __iter__(cls):
@@ -147,9 +149,9 @@ def fixed_wheel(index):
     # precomputation of the wheel
     wheel = nth(index, Wheel)
 
-    # populate roots and yield the small primes
-    roots = {}
-    def init(roots):
+    # populate sieve and yield the small primes
+    sieve = {}
+    def init(sieve):
         for p in simple():
             if p > wheel.modulus:
                 break
@@ -157,18 +159,18 @@ def fixed_wheel(index):
             for q in simple():
                 if q > p:
                     break
-                roots[p*q] = q
+                sieve[p*q] = q
 
             yield p
 
-    return chain(init(roots), wheel.roll(None, roots))
+    return chain(init(sieve), wheel.roll(None, sieve))
 
 
 
 def variable_wheel():
-    roots = {}
+    sieve = {}
     for wheel, prime in izip(Wheel, simple()):
-        for yld in wheel.roll(prime-1, roots):
+        for yld in wheel.roll(prime-1, sieve):
             yield yld
 
 
