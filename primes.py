@@ -1,4 +1,4 @@
-from itertools import imap, ifilter, izip, count, chain, takewhile
+from itertools import imap, ifilter, izip, count, chain
 from threading import Lock
 
 def simple():
@@ -73,17 +73,26 @@ class Wheel(object):
         return elem in self._spokes_set
 
 
-    def prune_roots(self, roots):
-        to_delete = set()
-        for root in roots.iterkeys():
-            if root not in self:
-                to_delete.add(root)
-        for root in to_delete:
-            del roots[root]
+    def update_caution(self, caution, roots):
+        root = roots[caution]
+        if root not in self:
+            del roots[caution]
+        else:
+            while caution in roots \
+                  or caution not in self:
+                caution += 2*root
+            roots[caution] = root
 
+    def update_roots(self, roots):
+        to_advance = set()
+        for caution in roots.iterkeys():
+            if caution not in self:
+                to_advance.add(caution)
+        for caution in sorted(to_advance):
+            self.update_caution(caution, roots)
 
     def roll(self, cycles, roots):
-        self.prune_roots(roots)
+        self.update_roots(roots)
 
         modulus = self.modulus
         if cycles is not None:
@@ -94,17 +103,11 @@ class Wheel(object):
             cycler = count(modulus,
                            modulus)
 
-        pop = roots.pop
         for cycle in cycler:
             for spoke in self:
                 candidate = cycle + spoke
-                root = pop(candidate, False)
-                if root:
-                    next_candidate = candidate + 2*root
-                    while next_candidate in roots \
-                          or next_candidate not in self:
-                        next_candidate += 2*root
-                    roots[next_candidate] = root
+                if candidate in roots:
+                    self.update_caution(candidate, roots)
                 else:
                     roots[candidate**2] = candidate
                     yield candidate
@@ -147,8 +150,15 @@ def fixed_wheel(index):
     # populate roots and yield the small primes
     roots = {}
     def init(roots):
-        for p in takewhile(lambda x: x < wheel.modulus, simple()):
-            roots[p**2] = p
+        for p in simple():
+            if p > wheel.modulus:
+                break
+
+            for q in simple():
+                if q > p:
+                    break
+                roots[p*q] = q
+
             yield p
 
     return chain(init(roots), wheel.roll(None, roots))
