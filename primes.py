@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Lesser General Public License along
 # with stupid_python_tricks.  If not, see <http://www.gnu.org/licenses/>.
 
-from itertools import imap, ifilter, izip, count, chain
+from itertools import ifilter, izip, count, chain
 from threading import Lock
 
 def simple():
