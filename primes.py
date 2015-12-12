@@ -1,4 +1,4 @@
-from itertools import izip, ifilter, count, chain, takewhile
+from itertools import imap, ifilter, izip, count, chain, takewhile
 from threading import Lock
 
 def simple():
@@ -32,16 +32,18 @@ def nth(n, stream):
         raise IndexError("Can't get element off the end of generator")
 
 
+
 class Wheel(object):
-    __slots__ = [ 'modulus', '_spokes_iter', '_spokes_cache', '_lock' ]
+    __slots__ = [ 'modulus', '_spokes_iter', '_spokes_cache', '_spokes_set', '_lock' ]
     def __init__(self, modulus, spokes_iter):
         self.modulus = modulus
         self._spokes_iter = spokes_iter
         self._spokes_cache = []
+        self._spokes_set = set()
         self._lock = Lock()
 
-    @property
-    def spokes(self):
+
+    def __iter__(self):
         i = 0
         while True:
             while i < len(self._spokes_cache):
@@ -55,13 +57,54 @@ class Wheel(object):
                 except StopIteration:
                     break
                 self._spokes_cache.append(yld)
+                self._spokes_set.add(yld)
             i += 1
             yield yld
 
-    def __iter__(self):
-        return ( n + s
-                 for s in count(self.modulus, self.modulus)
-                 for n in self.spokes )
+
+    def __contains__(self, elem):
+        elem %= self.modulus
+        it = iter(self)
+        while not self._spokes_cache or elem > self._spokes_cache[-1]:
+            next(it)
+        return elem in self._spokes_set
+
+
+    def prune_roots(self, roots):
+        to_delete = set()
+        for root in roots.iterkeys():
+            if root not in self:
+                to_delete.add(root)
+        for root in to_delete:
+            del roots[root]
+
+
+    def roll(self, cycles, roots):
+        self.prune_roots(roots)
+
+        modulus = self.modulus
+        if cycles is not None:
+            cycler = xrange(modulus,
+                            modulus*(cycles+1),
+                            modulus)
+        else:
+            cycler = count(modulus,
+                           modulus)
+
+        pop = roots.pop
+        for cycle in cycler:
+            for spoke in self:
+                candidate = cycle + spoke
+                root = pop(candidate, False)
+                if root:
+                    next_candidate = candidate + 2*root
+                    while next_candidate in roots \
+                          or next_candidate not in self:
+                        next_candidate += 2*root
+                    roots[next_candidate] = root
+                else:
+                    roots[candidate**2] = candidate
+                    yield candidate
 
     class __metaclass__(type):
         def __iter__(cls):
@@ -70,7 +113,7 @@ class Wheel(object):
                 return cls(prime * modulus,
                            ( k
                              for i in xrange(prime)
-                             for j in last.spokes
+                             for j in last
                              for k in (i * modulus + j,)
                              if k % prime ))
 
@@ -103,65 +146,14 @@ def fixed_wheel(index):
             roots[p**2] = p
             yield p
 
-    # roll the wheel and filter the results
-    def roll(wheel, roots):
-        spokes_set = frozenset(wheel.spokes)
-        modulus = wheel.modulus
+    return chain(init(roots), wheel.roll(None, roots))
 
-        root = None
-        old_roots = set()
-        for root in roots.iterkeys():
-            if root % modulus not in spokes_set:
-                old_roots.add(root)
-        for root in sorted(old_roots):
-            del roots[root]
-        del old_roots
-        del root
-
-        pop = roots.pop
-        for p in wheel:
-            r = pop(p, False)
-            if r:
-                x = p + 2*r
-                while x in roots or (x % modulus) not in spokes_set:
-                    x += 2*r
-                roots[x] = r
-            else:
-                roots[p**2] = p
-                yield p
-
-    return chain(init(roots), roll(wheel, roots))
 
 
 def variable_wheel():
-    def roll(wheel, prime, roots):
-        spokes_set = frozenset(wheel.spokes)
-        modulus = wheel.modulus
-
-        root = None
-        old_roots = set()
-        for root in roots.iterkeys():
-            if root % modulus not in spokes_set:
-                old_roots.add(root)
-        for root in sorted(old_roots):
-            del roots[root]
-        del old_roots
-        del root
-
-        pop = roots.pop
-        for p in take(len(spokes_set)*(prime-1), wheel):
-            r = pop(p, False)
-            if r:
-                x = p + 2*r
-                while x in roots or (x % modulus) not in spokes_set:
-                    x += 2*r
-                roots[x] = r
-            else:
-                roots[p**2] = p
-                yield p
     roots = {}
     for wheel, prime in izip(Wheel, simple()):
-        for yld in roll(wheel, prime, roots):
+        for yld in wheel.roll(prime-1, roots):
             yield yld
 
 
