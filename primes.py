@@ -14,16 +14,19 @@ def simple():
         stream = ifilter(sieve, stream)
         yield prime
 
+
 def take(n, stream):
     stream = iter(stream)
     for _ in xrange(n):
         yield next(stream)
+
 
 def drop(n, stream):
     stream = iter(stream)
     for _ in xrange(n):
         next(stream)
     return stream
+
 
 def nth(n, stream):
     try:
@@ -122,11 +125,13 @@ class Wheel(object):
                 yield last
                 last = close_over(prime, last)
 
+
     def __str__(self):
         return "<%s.%s %d %d>" % (__name__,
                                   type(self).__name__,
                                   self.modulus,
                                   id(self))
+
 
 
 def fixed_wheel(index):
