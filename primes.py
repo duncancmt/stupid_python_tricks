@@ -68,6 +68,8 @@ class Wheel(object):
 
     def __contains__(self, elem):
         elem %= self.modulus
+        if self._spokes_cache and elem <= self._spokes_cache[-1]:
+            return elem in self._spokes_set
         it = iter(self)
         while not self._spokes_cache or elem > self._spokes_cache[-1]:
             next(it)
