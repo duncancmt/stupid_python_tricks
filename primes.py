@@ -37,7 +37,8 @@ def nth(n, stream):
 
 
 class Wheel(object):
-    __slots__ = [ 'modulus', '_spokes_iter', '_spokes_cache', '_spokes_set', '_lock' ]
+    __slots__ = [ 'modulus', '_spokes_iter', '_spokes_cache',
+                  '_spokes_set', '_lock' ]
     def __init__(self, modulus, spokes_iter):
         self.modulus = modulus
         self._spokes_iter = spokes_iter
@@ -179,7 +180,8 @@ def variable_wheel():
 if __name__ == '__main__':
     import sys
     if len(sys.argv) != 3:
-        print >>sys.stderr, "Usage: %s iterations wheel_index" % sys.argv[0]
+        print >>sys.stderr, \
+            "Usage: %s iterations wheel_index" % sys.argv[0]
         sys.exit(-1)
     iterations = int(sys.argv[1])
     wheel_index = int(sys.argv[2])
