@@ -52,37 +52,36 @@ def nth(n, stream):
 
 
 class Wheel(object):
-    __slots__ = [ 'modulus', '_spokes_iter', '_spokes_cache',
-                  '_spokes_set', '_spokes_full', '_lock' ]
+    __slots__ = [ '_iter', '_cache', '_full', '_set', '_lock', 'modulus']
     def __init__(self, modulus, spokes_iter):
         self.modulus = modulus
-        self._spokes_iter = spokes_iter
-        self._spokes_cache = []
-        self._spokes_set = set()
-        self._spokes_full = False
+        self._iter = spokes_iter
+        self._cache = []
+        self._set = set()
+        self._full = False
         self._lock = Lock()
 
 
     def __iter__(self):
-        if self._spokes_full:
-            return iter(self._spokes_cache)
+        if self._full:
+            return iter(self._cache)
         else:
             def lazy_populate():
                i = 0
                while True:
-                   while i < len(self._spokes_cache):
-                       yield self._spokes_cache[i]
+                   while i < len(self._cache):
+                       yield self._cache[i]
                        i += 1
                    with self._lock:
-                       if i != len(self._spokes_cache):
+                       if i != len(self._cache):
                            continue
                        try:
-                           yld = next(self._spokes_iter)
+                           yld = next(self._iter)
                        except StopIteration:
-                           self._spokes_full = True
+                           self._full = True
                            break
-                       self._spokes_cache.append(yld)
-                       self._spokes_set.add(yld)
+                       self._cache.append(yld)
+                       self._set.add(yld)
                    i += 1
                    yield yld
             return iter(lazy_populate())
@@ -90,8 +89,8 @@ class Wheel(object):
 
     def __contains__(self, elem):
         elem %= self.modulus
-        if self._spokes_full:
-            return elem in self._spokes_set
+        if self._full:
+            return elem in self._set
         else:
             return elem in iter(self)
 
