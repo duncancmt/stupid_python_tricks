@@ -53,42 +53,47 @@ def nth(n, stream):
 
 class Wheel(object):
     __slots__ = [ 'modulus', '_spokes_iter', '_spokes_cache',
-                  '_spokes_set', '_lock' ]
+                  '_spokes_set', '_spokes_full', '_lock' ]
     def __init__(self, modulus, spokes_iter):
         self.modulus = modulus
         self._spokes_iter = spokes_iter
         self._spokes_cache = []
         self._spokes_set = set()
+        self._spokes_full = False
         self._lock = Lock()
 
 
     def __iter__(self):
-        i = 0
-        while True:
-            while i < len(self._spokes_cache):
-                yield self._spokes_cache[i]
-                i += 1
-            with self._lock:
-                if i != len(self._spokes_cache):
-                    continue
-                try:
-                    yld = next(self._spokes_iter)
-                except StopIteration:
-                    break
-                self._spokes_cache.append(yld)
-                self._spokes_set.add(yld)
-            i += 1
-            yield yld
+        if self._spokes_full:
+            return iter(self._spokes_cache)
+        else:
+            def lazy_populate():
+               i = 0
+               while True:
+                   while i < len(self._spokes_cache):
+                       yield self._spokes_cache[i]
+                       i += 1
+                   with self._lock:
+                       if i != len(self._spokes_cache):
+                           continue
+                       try:
+                           yld = next(self._spokes_iter)
+                       except StopIteration:
+                           self._spokes_full = True
+                           break
+                       self._spokes_cache.append(yld)
+                       self._spokes_set.add(yld)
+                   i += 1
+                   yield yld
+            return iter(lazy_populate())
 
 
     def __contains__(self, elem):
         elem %= self.modulus
-        if self._spokes_cache and elem <= self._spokes_cache[-1]:
+        if self._spokes_full:
             return elem in self._spokes_set
-        it = iter(self)
-        while not self._spokes_cache or elem > self._spokes_cache[-1]:
-            next(it)
-        return elem in self._spokes_set
+        else:
+            return elem in iter(self)
 
 
     def update_sieve(self, hazard, sieve):
