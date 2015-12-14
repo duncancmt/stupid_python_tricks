@@ -58,16 +58,20 @@ class Wheel(object):
 
 
     def roll(self, start=None):
+        modulus = self.modulus
+        spokes = self.spokes
+
         if start is None:
             start_cycle, start_spoke = 1, 0
         else:
-            start_cycle, start_spoke = divmod(start, self.modulus)
-            start_spoke = bisect_left(self.spokes, start_spoke)
-        modulus = self.modulus
-        for spoke in drop(start_spoke, self.spokes):
-            yield start_cycle * modulus + spoke
-        for cycle in count(modulus*(start_cycle+1), modulus):
-            for spoke in self.spokes:
+            start_cycle, start_spoke = divmod(start, modulus)
+            start_spoke = bisect_left(spokes, start_spoke)
+
+        start_cycle *= modulus
+        for i in xrange(start_spoke, len(spokes)):
+            yield start_cycle + spokes[i]
+        for cycle in count(modulus + start_cycle, modulus):
+            for spoke in spokes:
                 yield cycle + spoke
 
 
