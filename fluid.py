@@ -15,6 +15,7 @@
 
 import sys
 from collections import MutableMapping
+from contextlib import contextmanager
 
 from localdata import LocalDict
 from immutable import ImmutableDict
@@ -122,5 +123,30 @@ class FluidManager(MutableMapping):
         return len(self.to_dict())
     def __iter__(self):
         return iter(self.to_dict())
-        
-__all__ = ["FluidManager"]
+
+
+@contextmanager
+def fluid_let(manager, **kwargs):
+    """In the given manager, bind the keyword arguments to their values, for the
+    duration of the context manager (with statement). Restore those variables to
+    their original values when the context (with statement) exits.
+    """
+
+    # back twice to get through the decorator
+    frame = sys._getframe(2)
+    old_values = {}
+    try:
+        for var, val in kwargs.iteritems():
+            try:
+                old_values[var] = manager._get_with_frame(var, frame)
+            except KeyError:
+                old_values[var] = manager._deletion_sentinel
+            manager._set_with_frame(var, val, frame)
+        yield
+    finally:
+        for var, val in old_values.iteritems():
+            manager._set_with_frame(var, val, frame)
+
+dynamic_let=fluid_let
+
+__all__ = ["FluidManager", "fluid_let", "dynamic_let"]
