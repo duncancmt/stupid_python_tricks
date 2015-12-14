@@ -64,11 +64,11 @@ class Wheel(object):
             start_cycle, start_spoke = divmod(start, self.modulus)
             start_spoke = bisect_left(self.spokes, start_spoke)
         modulus = self.modulus
-        # TODO: this is the hot spot
-        return drop(start_spoke,
-                    ( cycle * modulus + spoke
-                      for cycle in count(start_cycle)
-                      for spoke in self.spokes ))
+        for spoke in drop(start_spoke, self.spokes):
+            yield start_cycle * modulus + spoke
+        for cycle in count(modulus*(start_cycle+1), modulus):
+            for spoke in self.spokes:
+                yield cycle + spoke
 
 
     def _advance_hazard(self, hazard, sieve):
