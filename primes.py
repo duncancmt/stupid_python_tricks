@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Lesser General Public License along
 # with stupid_python_tricks.  If not, see <http://www.gnu.org/licenses/>.
 
-from itertools import ifilter, izip, count, chain, takewhile
+from itertools import ifilter, islice, izip, count, chain, takewhile
 from fractions import gcd
 from operator import mul
 from bisect import bisect_left
@@ -33,21 +33,16 @@ def simple():
 
 
 def take(n, stream):
-    stream = iter(stream)
-    for _ in xrange(n):
-        yield next(stream)
+    return islice(stream, None, n, None)
 
 
 def drop(n, stream):
-    stream = iter(stream)
-    for _ in xrange(n):
-        next(stream)
-    return stream
+    return islice(stream, n, None, None)
 
 
 def nth(n, stream):
     try:
-        return next(take(1, drop(n, stream)))
+        return next(drop(n, stream))
     except StopIteration:
         raise IndexError("Can't get element off the end of generator")
 
