@@ -69,6 +69,7 @@ class Wheel(object):
             start_cycle, start_spoke = divmod(start, self.modulus)
             start_spoke = bisect_left(self.spokes, start_spoke)
         modulus = self.modulus
+        # TODO: this is the hot spot
         return drop(start_spoke,
                     ( cycle * modulus + spoke
                       for cycle in count(start_cycle)
@@ -78,8 +79,9 @@ class Wheel(object):
     def _advance_hazard(self, hazard, sieve):
         prime, it = sieve.pop(hazard)
         hazard = prime * next(it)
-        while hazard in sieve or hazard not in self:
+        while hazard in sieve:
             hazard = prime * next(it)
+        # assert hazard in self
         sieve[hazard] = (prime, it)
 
 
@@ -180,13 +182,4 @@ def _check_variable(up_to):
 
 if __name__ == '__main__':
     import sys
-    if len(sys.argv) != 3:
-        print >>sys.stderr, \
-            "Usage: %s iterations wheel_index" % sys.argv[0]
-        sys.exit(-1)
-    iterations = int(sys.argv[1])
-    wheel_index = int(sys.argv[2])
-    from itertools import imap
-    from operator import eq
-    print all(imap(eq, take(iterations, simple()),
-                       take(iterations, fixed_wheel(wheel_index))))
+    print nth(int(sys.argv[1]), variable_wheel())
