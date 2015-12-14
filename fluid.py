@@ -49,29 +49,29 @@ class FluidManager(MutableMapping):
         object.__setattr__(self, "_deletion_sentinel", object())
 
     def __getattr__(self, name):
-        frame = sys._getframe().f_back
+        frame = sys._getframe(1)
         try:
             return self._get_with_frame(name, frame)
         except KeyError:
             raise AttributeError(name)
     def __setattr__(self, name, value):
-        frame = sys._getframe().f_back
+        frame = sys._getframe(1)
         return self._set_with_frame(name, value, frame)
     def __delattr__(self, name):
-        frame = sys._getframe().f_back
+        frame = sys._getframe(1)
         try:
             return self._delete_with_frame(name, frame)
         except KeyError:
             raise AttributeError(name)
 
     def __getitem__(self, key):
-        frame = sys._getframe().f_back
+        frame = sys._getframe(1)
         return self._get_with_frame(key, frame)
     def __setitem__(self, key, value):
-        frame = sys._getframe().f_back
+        frame = sys._getframe(1)
         return self._set_with_frame(key, value, frame)
     def __delitem__(self, key):
-        frame = sys._getframe().f_back
+        frame = sys._getframe(1)
         return self._delete_with_frame(key, frame)
 
     def _cleanup_frames(self, frame):
@@ -105,7 +105,7 @@ class FluidManager(MutableMapping):
 
     def to_dict(self):
         ret = dict()
-        for frame in reversed(list(frames_from(sys._getframe().f_back))):
+        for frame in reversed(list(frames_from(sys._getframe(1)))):
             try:
                 ret.update(self._frames[frame])
             except KeyError:
