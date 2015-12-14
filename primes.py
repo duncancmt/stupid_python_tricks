@@ -13,8 +13,10 @@
 # You should have received a copy of the GNU Lesser General Public License along
 # with stupid_python_tricks.  If not, see <http://www.gnu.org/licenses/>.
 
-from itertools import ifilter, izip, count, chain
-from threading import Lock
+from itertools import ifilter, izip, count, chain, takewhile
+from fractions import gcd
+from operator import mul
+from bisect import bisect_left
 
 def simple():
     """A simple prime generator using the Sieve of Eratosthenes.
@@ -52,112 +54,87 @@ def nth(n, stream):
 
 
 class Wheel(object):
-    __slots__ = [ '_iter', '_cache', '_full', '_set', '_lock', 'modulus']
-    def __init__(self, modulus, spokes_iter):
-        self.modulus = modulus
-        self._iter = spokes_iter
-        self._cache = []
-        self._set = set()
-        self._full = False
-        self._lock = Lock()
+    def __init__(self, seeds):
+        self.seeds = tuple(seeds)
+        self.modulus = reduce(mul, self.seeds, 1)
+        self.spokes = tuple(candidate
+                            for candidate in xrange(1, self.modulus+1)
+                            if candidate in self)
+
+
+    def roll(self, start=None):
+        if start is None:
+            start_cycle, start_spoke = 1, 0
+        else:
+            start_cycle, start_spoke = divmod(start, self.modulus)
+            start_spoke = bisect_left(self.spokes, start_spoke)
+        modulus = self.modulus
+        return drop(start_spoke,
+                    ( cycle * modulus + spoke
+                      for cycle in count(start_cycle)
+                      for spoke in self.spokes ))
+
+
+    def _advance_hazard(self, hazard, sieve):
+        prime, it = sieve.pop(hazard)
+        hazard = prime * next(it)
+        while hazard in sieve or hazard not in self:
+            hazard = prime * next(it)
+        sieve[hazard] = (prime, it)
+
+
+    def _update_sieve(self, sieve):
+        to_delete = set()
+        to_advance = set()
+        for hazard, (prime, _) in sieve.iteritems():
+            if prime not in self:
+                to_delete.add(hazard)
+            else:
+                sieve[hazard] = (prime, self.roll(hazard // prime))
+                to_advance.add(hazard)
+        for hazard in to_delete:
+            del sieve[hazard]
+        for hazard in sorted(to_advance):
+            self._advance_hazard(hazard, sieve)
+
+
+    def steer(self, cycles, sieve):
+        if cycles is None:
+            candidate_stream = iter(self)
+        else:
+            candidate_stream = iter(take(len(self.spokes)*cycles, self))
+
+        self._update_sieve(sieve)
+
+        for candidate in candidate_stream:
+            if candidate in sieve:
+                self._advance_hazard(candidate, sieve)
+            else:
+                it = self.roll(candidate)
+                sieve[candidate*next(it)] = (candidate, it)
+                yield candidate
 
 
     def __iter__(self):
-        if self._full:
-            return iter(self._cache)
-        else:
-            def lazy_populate():
-               i = 0
-               while True:
-                   while i < len(self._cache):
-                       yield self._cache[i]
-                       i += 1
-                   with self._lock:
-                       if i != len(self._cache):
-                           continue
-                       try:
-                           yld = next(self._iter)
-                       except StopIteration:
-                           self._full = True
-                           break
-                       self._cache.append(yld)
-                       self._set.add(yld)
-                   i += 1
-                   yield yld
-            return iter(lazy_populate())
+        return self.roll()
 
 
     def __contains__(self, elem):
-        elem %= self.modulus
-        if self._full:
-            return elem in self._set
-        else:
-            return elem in iter(self)
-
-
-    def update_sieve(self, hazard, sieve):
-        prime = sieve[hazard]
-        if prime not in self:
-            del sieve[hazard]
-        else:
-            while hazard in sieve \
-                  or hazard not in self:
-                hazard += 2*prime
-            sieve[hazard] = prime
-
-
-    def roll(self, cycles, sieve):
-        hazard = None
-        to_advance = set()
-        for hazard in sieve.iterkeys():
-            if hazard not in self:
-                to_advance.add(hazard)
-        for hazard in sorted(to_advance):
-            self.update_sieve(hazard, sieve)
-        del to_advance
-        del hazard
-
-        modulus = self.modulus
-        if cycles is not None:
-            cycler = xrange(modulus,
-                            modulus*(cycles+1),
-                            modulus)
-        else:
-            cycler = count(modulus,
-                           modulus)
-
-        for cycle in cycler:
-            for spoke in self:
-                candidate = cycle + spoke
-                if candidate in sieve:
-                    self.update_sieve(candidate, sieve)
-                else:
-                    sieve[candidate**2] = candidate
-                    yield candidate
+        return gcd(elem, self.modulus) == 1
 
 
     class __metaclass__(type):
         def __iter__(cls):
-            def close_over(prime, last):
-                modulus = last.modulus
-                return cls(prime * modulus,
-                           ( k
-                             for i in xrange(prime)
-                             for j in last
-                             for k in (i * modulus + j,)
-                             if k % prime ))
-
-            last = cls(1, iter((1,)))
+            primes = []
+            yield cls(primes)
             for prime in simple():
-                yield last
-                last = close_over(prime, last)
+                primes.append(prime)
+                yield cls(primes)
 
 
-    def __str__(self):
-        return "<%s.%s %d %d>" % (__name__,
-                                  type(self).__name__,
-                                  self.modulus,
-                                  id(self))
+    def __repr__(self):
+        return "%s.%s(%s)" % \
+            (__name__, type(self).__name__, self.seeds)
 
 
 
@@ -169,33 +146,36 @@ def fixed_wheel(index):
     """
 
     # precomputation of the wheel
-    wheel = nth(index, Wheel)
+    w = nth(index, Wheel)
 
-    # populate sieve and yield the small primes
+    # populate the sieve
     sieve = {}
-    def init(sieve):
-        for p in simple():
-            if p > wheel.modulus:
-                break
-
-            for q in simple():
-                if q > p:
-                    break
-                sieve[p*q] = q
-
-            yield p
-
-    return chain(init(sieve), wheel.roll(None, sieve))
+    # TODO: I'm not sure what the time complexity of this double loop
+    # is, but I'm sure it's terrible
+    for p in takewhile(lambda p: p < w.modulus, simple()):
+        for q in takewhile(lambda q: q <= p, simple()):
+            sieve[p*q] = (q, None)
+    return chain(takewhile(lambda p: p < w.modulus, simple()),
+                 w.steer(None, sieve))
 
 
 
 def variable_wheel():
     sieve = {}
-    for wheel, prime in izip(Wheel, simple()):
-        for yld in wheel.roll(prime-1, sieve):
-            yield yld
+    return chain.from_iterable( ( wheel.steer(prime-1, sieve)
+                                  for wheel, prime in izip(Wheel, simple()) ) )
 
 
+
+def _check_fixed(index, up_to):
+    for i, (a, b) in enumerate(take(up_to, izip(fixed_wheel(index), simple()))):
+        if a != b:
+            return i
+
+def _check_variable(up_to):
+    for i, (a, b) in enumerate(take(up_to, izip(variable_wheel(), simple()))):
+        if a != b:
+            return i
 
 
 if __name__ == '__main__':
