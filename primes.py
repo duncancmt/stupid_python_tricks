@@ -95,7 +95,8 @@ class Wheel(object):
         modulus = self.modulus
         spokes = self.spokes
         prime, cycle, spoke = sieve[hazard]
-        # assert hazard == prime * (cycle*modulus + spokes[spoke])
+        # assert hazard not in self \
+        #     or hazard == prime * (cycle*modulus + spokes[spoke])
         next_hazard = hazard
         while next_hazard in sieve:
             spoke += 1
@@ -118,13 +119,20 @@ class Wheel(object):
                 sieve[hazard] = (prime, cycle, spoke)
             else:
                 cycle, spoke = self._index_unsafe(hazard // prime)
-                sieve[hazard] = (prime, cycle, spoke)
+                # it's OK to not use clock arithmetic for spoke here
+                # because the very next thing we're going to do to it
+                # is add 1
+                sieve[hazard] = (prime, cycle, spoke-1)
                 to_advance.add(hazard)
         for hazard in to_delete:
             del sieve[hazard]
-        for hazard in sorted(to_advance):
+        for hazard in sorted(to_advance,
+                             key=lambda hazard: sieve[hazard][0]):
             self._advance_hazard(hazard, sieve)
-        # assert len(frozenset(imap(itemgetter(0), sieve.itervalues()))) == len(sieve)
+        # assert len(frozenset(imap(itemgetter(0), \
+        #                           sieve.itervalues()))) \
+        #        == len(sieve)
+        # assert all(imap(lambda hazard: hazard in self, sieve.iterkeys()))
 
 
     def roll(self, cycles, sieve):
@@ -140,9 +148,8 @@ class Wheel(object):
                 self._advance_hazard(candidate, sieve)
             else:
                 prime = candidate
-                hazard = prime**2
-                cycle, spoke = self.index(hazard // prime)
-                sieve[hazard] = (prime, cycle, spoke)
+                cycle, spoke = self.index(candidate)
+                sieve[prime**2] = (candidate, cycle, spoke)
                 yield prime
             # assert all(imap(lambda h: h > candidate, sieve.iterkeys()))
 
