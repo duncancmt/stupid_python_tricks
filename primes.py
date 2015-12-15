@@ -115,7 +115,7 @@ class Wheel(object):
             if prime not in self:
                 to_delete.add(hazard)
             elif hazard in self:
-                cycle, spoke = self.index(hazard // prime)
+                cycle, spoke = self._index_unsafe(hazard // prime)
                 sieve[hazard] = (prime, cycle, spoke)
             else:
                 cycle, spoke = self._index_unsafe(hazard // prime)
@@ -148,7 +148,7 @@ class Wheel(object):
                 self._advance_hazard(candidate, sieve)
             else:
                 prime = candidate
-                cycle, spoke = self.index(candidate)
+                cycle, spoke = self._index_unsafe(candidate)
                 sieve[prime**2] = (candidate, cycle, spoke)
                 yield prime
             # assert all(imap(lambda h: h > candidate, sieve.iterkeys()))
