@@ -86,7 +86,7 @@ class Wheel(object):
     def __iter__(self):
         spokes = self.spokes
         modulus = self.modulus
-        for i in count():
+        for i in count(1):
             for j in spokes:
                 yield i*modulus + j
 
