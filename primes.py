@@ -109,6 +109,18 @@ class Wheel(object):
 
 
     def _update_sieve(self, sieve):
+        if sieve is None:
+            sieve = {}
+            for p in takewhile(lambda p: p < self.modulus, simple()):
+                if p in self:
+                    for q in dropwhile(lambda q: q < p,
+                                       takewhile(lambda q: q < self.modulus,
+                                                 simple())):
+                        hazard = p*q
+                        if hazard > self.modulus and hazard in self:
+                            sieve[hazard] = (p, None, None)
+                            break
+
         to_delete = set()
         to_advance = set()
         for hazard, (prime, _, __) in sieve.iteritems():
@@ -133,15 +145,16 @@ class Wheel(object):
         #                           sieve.itervalues()))) \
         #        == len(sieve)
         # assert all(imap(lambda hazard: hazard in self, sieve.iterkeys()))
+        return sieve
 
 
-    def roll(self, cycles, sieve):
+    def roll(self, cycles, sieve=None):
+        sieve = self._update_sieve(sieve)
+
         if cycles is None:
             candidate_stream = iter(self)
         else:
             candidate_stream = iter(take(len(self.spokes)*cycles, self))
-
-        self._update_sieve(sieve)
 
         for candidate in candidate_stream:
             if candidate in sieve:
@@ -179,20 +192,8 @@ def fixed_wheel(index):
     # precomputation of the wheel
     w = nth(index, Wheel)
 
-    # populate the sieve
-    sieve = {}
-    for p in takewhile(lambda p: p < w.modulus, simple()):
-        if p in w:
-            for q in dropwhile(lambda q: q < p,
-                               takewhile(lambda q: q < w.modulus,
-                                         simple())):
-                hazard = p*q
-                if hazard > w.modulus and hazard in w:
-                    sieve[hazard] = (p, None, None)
-                    break
-
     return chain(takewhile(lambda p: p < w.modulus, simple()),
-                 w.roll(None, sieve))
+                 w.roll(None))
 
 
 
