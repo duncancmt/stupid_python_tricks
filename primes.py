@@ -15,8 +15,10 @@
 
 from itertools import *
 from fractions import gcd
-from operator import mul
+from operator import mul, itemgetter
 from bisect import bisect_left
+from numbers import Integral
+
 
 def simple():
     """A simple prime generator using the Sieve of Eratosthenes.
@@ -57,49 +59,75 @@ class Wheel(object):
                             if candidate in self)
 
 
-    def roll(self, start=None):
-        modulus = self.modulus
-        spokes = self.spokes
+    def _index_unsafe(self, elem):
+        cycle, raw_spoke = divmod(elem, self.modulus)
+        spoke = bisect_left(self.spokes, raw_spoke)
+        return (cycle, spoke)
 
-        if start is None:
-            start_cycle, start_spoke = 1, 0
+
+    def index(self, elem):
+        if elem not in self:
+            raise IndexError("%d is not in %s" % (elem, type(self).__name__))
+        return self._index_unsafe(elem)
+
+
+    def __getitem__(self, elem):
+        if isinstance(elem, Integral):
+            cycle, spoke = self.index(elem)
         else:
-            start_cycle, start_spoke = divmod(start, modulus)
-            start_spoke = bisect_left(spokes, start_spoke)
+            cycle, spoke = elem
+        return cycle*self.modulus + self.spokes[spoke]
 
-        start_cycle *= modulus
-        for i in xrange(start_spoke, len(spokes)):
-            yield start_cycle + spokes[i]
-        for cycle in count(modulus + start_cycle, modulus):
-            for spoke in spokes:
-                yield cycle + spoke
+
+    def __contains__(self, elem):
+        return gcd(elem, self.modulus) == 1
+
+
+    def __iter__(self):
+        spokes = self.spokes
+        modulus = self.modulus
+        for i in count():
+            for j in spokes:
+                yield i*modulus + j
 
 
     def _advance_hazard(self, hazard, sieve):
-        prime, it = sieve.pop(hazard)
-        hazard = prime * next(it)
-        while hazard in sieve:
-            hazard = prime * next(it)
-        # assert hazard in self
-        sieve[hazard] = (prime, it)
+        modulus = self.modulus
+        spokes = self.spokes
+        prime, cycle, spoke = sieve[hazard]
+        # assert hazard == prime * (cycle*modulus + spokes[spoke])
+        next_hazard = hazard
+        while next_hazard in sieve:
+            spoke += 1
+            cycle_incr, spoke = divmod(spoke, len(spokes))
+            cycle += cycle_incr
+            next_hazard = prime * (cycle*modulus + spokes[spoke])
+        # assert next_hazard in self
+        del sieve[hazard]
+        sieve[next_hazard] = (prime, cycle, spoke)
 
 
     def _update_sieve(self, sieve):
         to_delete = set()
         to_advance = set()
-        for hazard, (prime, _) in sieve.iteritems():
+        for hazard, (prime, _, __) in sieve.iteritems():
             if prime not in self:
                 to_delete.add(hazard)
+            elif hazard in self:
+                cycle, spoke = self.index(hazard // prime)
+                sieve[hazard] = (prime, cycle, spoke)
             else:
-                sieve[hazard] = (prime, self.roll(hazard // prime))
+                cycle, spoke = self._index_unsafe(hazard // prime)
+                sieve[hazard] = (prime, cycle, spoke)
                 to_advance.add(hazard)
         for hazard in to_delete:
             del sieve[hazard]
         for hazard in sorted(to_advance):
             self._advance_hazard(hazard, sieve)
+        # assert len(frozenset(imap(itemgetter(0), sieve.itervalues()))) == len(sieve)
 
 
-    def steer(self, cycles, sieve):
+    def roll(self, cycles, sieve):
         if cycles is None:
             candidate_stream = iter(self)
         else:
@@ -111,18 +139,12 @@ class Wheel(object):
             if candidate in sieve:
                 self._advance_hazard(candidate, sieve)
             else:
-                it = self.roll(candidate)
-                sieve[candidate*next(it)] = (candidate, it)
-                yield candidate
+                prime = candidate
+                hazard = prime**2
+                cycle, spoke = self.index(hazard // prime)
+                sieve[hazard] = (prime, cycle, spoke)
+                yield prime
             # assert all(imap(lambda h: h > candidate, sieve.iterkeys()))
-
-
-    def __iter__(self):
-        return self.roll()
-
-
-    def __contains__(self, elem):
-        return gcd(elem, self.modulus) == 1
 
 
     class __metaclass__(type):
@@ -158,13 +180,13 @@ def fixed_wheel(index):
         for q in takewhile(lambda q: q <= p, simple()):
             sieve[p*q] = (q, None)
     return chain(takewhile(lambda p: p < w.modulus, simple()),
-                 w.steer(None, sieve))
+                 w.roll(None, sieve))
 
 
 
 def variable_wheel():
     sieve = {}
-    return chain.from_iterable( ( wheel.steer(prime-1, sieve)
+    return chain.from_iterable( ( wheel.roll(prime-1, sieve)
                                   for wheel, prime in izip(Wheel, simple()) ) )
 
 
