@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Lesser General Public License along
 # with stupid_python_tricks.  If not, see <http://www.gnu.org/licenses/>.
 
-from itertools import ifilter, islice, izip, count, chain, takewhile
+from itertools import *
 from fractions import gcd
 from operator import mul
 from bisect import bisect_left
@@ -114,6 +114,7 @@ class Wheel(object):
                 it = self.roll(candidate)
                 sieve[candidate*next(it)] = (candidate, it)
                 yield candidate
+            # assert all(imap(lambda h: h > candidate, sieve.iterkeys()))
 
 
     def __iter__(self):
