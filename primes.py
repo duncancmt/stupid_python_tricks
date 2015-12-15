@@ -204,12 +204,26 @@ def variable_wheel():
 
 
 def _check_fixed(index, up_to):
-    for i, (a, b) in enumerate(take(up_to, izip(fixed_wheel(index), simple()))):
+    try:
+        import pyprimes.sieves
+        good_stream = pyprimes.sieves.best_sieve()
+    except ImportError:
+        good_stream = simple()
+    for i, (a, b) in enumerate(take(up_to,
+                                    izip(fixed_wheel(index),
+                                         good_stream))):
         if a != b:
             return i
 
 def _check_variable(up_to):
-    for i, (a, b) in enumerate(take(up_to, izip(variable_wheel(), simple()))):
+    try:
+        import pyprimes.sieves
+        good_stream = pyprimes.sieves.best_sieve()
+    except ImportError:
+        good_stream = simple()
+    for i, (a, b) in enumerate(take(up_to,
+                                    izip(variable_wheel(),
+                                         good_stream))):
         if a != b:
             return i
 
