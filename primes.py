@@ -112,7 +112,7 @@ class Wheel(object):
         to_delete = set()
         to_advance = set()
         for hazard, (prime, _, __) in sieve.iteritems():
-            if prime not in self:
+            if prime in self.seeds:
                 to_delete.add(hazard)
             elif hazard in self:
                 cycle, spoke = self._index_unsafe(hazard // prime)
