@@ -174,11 +174,16 @@ def fixed_wheel(index):
 
     # populate the sieve
     sieve = {}
-    # TODO: I'm not sure what the time complexity of this double loop
-    # is, but I'm sure it's terrible
     for p in takewhile(lambda p: p < w.modulus, simple()):
-        for q in takewhile(lambda q: q <= p, simple()):
-            sieve[p*q] = (q, None)
+        if p in w:
+            for q in dropwhile(lambda q: q < p,
+                               takewhile(lambda q: q < w.modulus,
+                                         simple())):
+                hazard = p*q
+                if hazard > w.modulus and hazard in w:
+                    sieve[hazard] = (p, None, None)
+                    break
+
     return chain(takewhile(lambda p: p < w.modulus, simple()),
                  w.roll(None, sieve))
 
