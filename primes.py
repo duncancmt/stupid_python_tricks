@@ -157,7 +157,8 @@ class Wheel(object):
         sieve[next_hazard] = (prime, cycle, spoke)
 
 
-    def _update_sieve(self, sieve):
+    def roll(self, cycles, sieve=None):
+        # populate the sieve if it's not supplied
         if sieve is None:
             sieve = {}
             for p in takewhile(lambda p: p < self.modulus, simple()):
@@ -170,6 +171,7 @@ class Wheel(object):
                             sieve[hazard] = (p, None, None)
                             break
 
+        # update the sieve for our wheel size
         to_delete = set()
         to_advance = set()
         for hazard, (prime, _, __) in sieve.iteritems():
@@ -194,16 +196,13 @@ class Wheel(object):
         #                           sieve.itervalues()))) \
         #        == len(sieve)
         # assert all(imap(lambda hazard: hazard in self, sieve.iterkeys()))
-        return sieve
 
-
-    def roll(self, cycles, sieve=None):
-        sieve = self._update_sieve(sieve)
-
+        # perform the wheel factorization
         candidate_stream = drop(len(self.spokes), self)
         if cycles is not None:
             candidate_stream = take(len(self.spokes)*cycles, candidate_stream)
 
+        # sieve the result
         for candidate in candidate_stream:
             if candidate in sieve:
                 self._advance_hazard(candidate, sieve)
