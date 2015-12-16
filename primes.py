@@ -96,13 +96,13 @@ class Wheel(object):
         spokes = self.spokes
         prime, cycle, spoke = sieve[hazard]
         # assert hazard not in self \
-        #     or hazard == prime * (cycle*modulus + spokes[spoke])
+        #     or hazard == prime * self[(cycle, spoke)]
         next_hazard = hazard
         while next_hazard in sieve:
             spoke += 1
             cycle_incr, spoke = divmod(spoke, len(spokes))
             cycle += cycle_incr
-            next_hazard = prime * (cycle*modulus + spokes[spoke])
+            next_hazard = prime * self[(cycle, spoke)]
         # assert next_hazard in self
         del sieve[hazard]
         sieve[next_hazard] = (prime, cycle, spoke)
