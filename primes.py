@@ -18,7 +18,6 @@ from fractions import gcd
 from operator import mul, itemgetter
 from bisect import bisect_left
 from numbers import Integral
-from threading import Lock
 
 
 def simple():
@@ -58,17 +57,15 @@ class Wheel(object):
             self.length = length
             self.last = last
             self.cache = []
-            self.lock = Lock()
 
         def _fill_cache(self, n):
             n = n + len(self) if n < 0 else n
             it = self.iterator
-            with self.lock:
-                try:
-                    while n >= len(self.cache):
-                        self.cache.append(next(it))
-                except StopIteration:
-                    raise IndexError("%s index out of range or iterator ended early" % type(self).__name__)
+            try:
+                while n >= len(self.cache):
+                    self.cache.append(next(it))
+            except StopIteration:
+                raise IndexError("%s index out of range or iterator ended early" % type(self).__name__)
 
         def __len__(self):
             return self.length
