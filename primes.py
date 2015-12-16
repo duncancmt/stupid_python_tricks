@@ -52,7 +52,7 @@ def nth(n, stream):
 
 class Wheel(object):
     def __init__(self, seeds):
-        self.seeds = tuple(seeds)
+        self.seeds = frozenset(seeds)
         self.modulus = reduce(mul, self.seeds, 1)
         self.spokes = tuple(candidate
                             for candidate in xrange(1, self.modulus+1)
