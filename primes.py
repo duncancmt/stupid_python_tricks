@@ -244,15 +244,7 @@ class Wheel(object):
 
 
 def fixed_wheel(index):
-    """A very fast wheel+sieve prime generator.
-
-    Adapted from http://stackoverflow.com/q/2211990 with an adjustable
-    wheel size.
-    """
-
-    # precomputation of the wheel
     w = nth(index, Wheel)
-
     return chain(takewhile(lambda p: p < w.modulus, simple()),
                  w.roll(None))
 
