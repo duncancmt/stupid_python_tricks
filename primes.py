@@ -18,6 +18,7 @@ from fractions import gcd
 from operator import mul, itemgetter
 from bisect import bisect_left
 from numbers import Integral
+from threading import Lock
 
 
 def simple():
@@ -51,24 +52,87 @@ def nth(n, stream):
 
 
 class Wheel(object):
+    class Spokes(object):
+        def __init__(self, iterator, length, last):
+            self.iterator = take(length, iterator)
+            self.length = length
+            self.last = last
+            self.cache = []
+            self.lock = Lock()
+
+        def _fill_cache(self, n):
+            n = n + len(self) if n < 0 else n
+            it = self.iterator
+            with self.lock:
+                try:
+                    while n >= len(self.cache):
+                        self.cache.append(next(it))
+                except StopIteration:
+                    raise IndexError("%s index out of range or iterator ended early" % type(self).__name__)
+
+        def __len__(self):
+            return self.length
+
+        def __getitem__(self, key):
+            if isinstance(key, slice):
+                if key.start is not None:
+                    self._fill_cache(key.start)
+                if key.stop is not None:
+                    self._fill_cache(key.stop)
+                return self.cache[key]
+            else:
+                self._fill_cache(key)
+                return self.cache[key]
+
+        def index(self, needle):
+            left = 0
+            left_value = self[left]
+            right = self.length-1
+            right_value = self.last
+            while True:
+                guess = ((right - left) * max(needle - left_value, 0) \
+                         // max(right_value - left_value, 1)) + left
+                guess_value = self[guess]
+                if guess_value == needle:
+                    # base case; needle is found
+                    return guess
+                elif guess_value < needle:
+                    left = guess + 1
+                    left_value = self[left]
+                elif guess-1 < 0 or self[guess-1] < needle:
+                    # base case; needle isn't present; return the
+                    # index of the next-largest element
+                    return guess
+                else:
+                    right = guess - 1
+                    right_value = self[right]
+
+
+
     def __init__(self, seeds):
         self.seeds = frozenset(seeds)
         self.modulus = reduce(mul, self.seeds, 1)
-        self.spokes = tuple(candidate
-                            for candidate in xrange(1, self.modulus+1)
-                            if candidate in self)
+        spokes_length = \
+            reduce(mul, imap(lambda x: x-1, self.seeds), 1)
+        self.spokes = \
+            self.Spokes(chain((1,),
+                              ifilter(lambda c: c in self,
+                                      xrange(2, self.modulus))),
+                        spokes_length,
+                        self.modulus)
 
 
     def _index_unsafe(self, elem):
         cycle, raw_spoke = divmod(elem, self.modulus)
-        spoke = bisect_left(self.spokes, raw_spoke)
+        spoke = self.spokes.index(raw_spoke)
         return (cycle, spoke)
 
 
     def index(self, elem):
-        if elem not in self:
+        ret = self._index_unsafe(elem)
+        if self[ret] != elem:
             raise IndexError("%d is not in %s" % (elem, type(self).__name__))
-        return self._index_unsafe(elem)
+        return ret
 
 
     def __getitem__(self, elem):
