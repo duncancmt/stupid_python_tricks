@@ -150,7 +150,7 @@ class Wheel(object):
     def __iter__(self):
         spokes = self.spokes
         modulus = self.modulus
-        for i in count(1):
+        for i in count():
             for j in spokes:
                 yield i*modulus + j
 
@@ -215,10 +215,9 @@ class Wheel(object):
     def roll(self, cycles, sieve=None):
         sieve = self._update_sieve(sieve)
 
-        if cycles is None:
-            candidate_stream = iter(self)
-        else:
-            candidate_stream = iter(take(len(self.spokes)*cycles, self))
+        candidate_stream = drop(len(self.spokes), self)
+        if cycles is not None:
+            candidate_stream = take(len(self.spokes)*cycles, candidate_stream)
 
         for candidate in candidate_stream:
             if candidate in sieve:
