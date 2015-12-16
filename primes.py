@@ -58,21 +58,20 @@ class Wheel(object):
             self.last = last
             self.cache = []
 
-        def _fill_cache(self, n):
-            n = n + len(self) if n < 0 else n
-            it = self.iterator
-            try:
-                while n >= len(self.cache):
-                    self.cache.append(next(it))
-            except StopIteration:
-                raise IndexError("%s index out of range or iterator ended early" % type(self).__name__)
-
         def __len__(self):
             return self.length
 
         def __getitem__(self, key):
-            self._fill_cache(key)
-            return self.cache[key]
+            cache = self.cache
+            if key >= len(cache):
+                try:
+                    it_next = self.iterator.next
+                    append = cache.append
+                    while key >= len(cache):
+                        append(it_next())
+                except StopIteration:
+                    raise IndexError("%s index out of range or iterator ended early" % type(self).__name__)
+            return cache[key % self.length]
 
         def index(self, needle):
             left = 0
