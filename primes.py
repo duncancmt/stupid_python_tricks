@@ -71,15 +71,8 @@ class Wheel(object):
             return self.length
 
         def __getitem__(self, key):
-            if isinstance(key, slice):
-                if key.start is not None:
-                    self._fill_cache(key.start)
-                if key.stop is not None:
-                    self._fill_cache(key.stop)
-                return self.cache[key]
-            else:
-                self._fill_cache(key)
-                return self.cache[key]
+            self._fill_cache(key)
+            return self.cache[key]
 
         def index(self, needle):
             left = 0
@@ -132,10 +125,7 @@ class Wheel(object):
 
 
     def __getitem__(self, elem):
-        if isinstance(elem, Integral):
-            cycle, spoke = self.index(elem)
-        else:
-            cycle, spoke = elem
+        cycle, spoke = elem
         return cycle*self.modulus + self.spokes[spoke]
 
 
