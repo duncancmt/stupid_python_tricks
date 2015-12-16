@@ -222,10 +222,9 @@ class Wheel(object):
             if candidate in sieve:
                 self._advance_hazard(candidate, sieve)
             else:
-                prime = candidate
                 cycle, spoke = self._index_unsafe(candidate)
-                sieve[prime**2] = (candidate, cycle, spoke)
-                yield prime
+                sieve[candidate**2] = (candidate, cycle, spoke)
+                yield candidate
             # assert all(imap(lambda h: h > candidate, sieve.iterkeys()))
 
 
