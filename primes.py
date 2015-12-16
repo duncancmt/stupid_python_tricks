@@ -109,17 +109,16 @@ class Wheel(object):
 
 
 
-    def __init__(self, seeds):
-        self.seeds = frozenset(seeds)
-        self.modulus = reduce(mul, self.seeds, 1)
-        spokes_length = \
-            reduce(mul, imap(lambda x: x-1, self.seeds), 1)
-        self.spokes = \
-            self.Spokes(chain((1,),
-                              ifilter(lambda c: c in self,
-                                      xrange(2, self.modulus))),
-                        spokes_length,
-                        self.modulus)
+    def __init__(self, smaller, prime):
+        if smaller is None and prime is None:
+            self.modulus = 1
+            self.spokes = self.Spokes((1,), 1, 1)
+        else:
+            self.modulus = smaller.modulus * prime
+            self.spokes = self.Spokes(ifilter(lambda x: x % prime,
+                                              smaller),
+                                      len(smaller.spokes)*(prime-1),
+                                      self.modulus)
 
 
     def _index_unsafe(self, elem):
@@ -188,7 +187,7 @@ class Wheel(object):
         to_delete = set()
         to_advance = set()
         for hazard, (prime, _, __) in sieve.iteritems():
-            if prime in self.seeds:
+            if prime not in self:
                 to_delete.add(hazard)
             elif hazard in self:
                 cycle, spoke = self._index_unsafe(hazard // prime)
@@ -232,16 +231,16 @@ class Wheel(object):
 
     class __metaclass__(type):
         def __iter__(cls):
-            primes = []
-            yield cls(primes)
+            last = cls(None, None)
+            yield last
             for prime in simple():
-                primes.append(prime)
-                yield cls(primes)
+                last = cls(last, prime)
+                yield last
 
 
     def __repr__(self):
-        return "%s.%s(%s)" % \
-            (__name__, type(self).__name__, self.seeds)
+        return "<%s.%s with modulus %d>" % \
+            (__name__, type(self).__name__, self.modulus)
 
 
 
