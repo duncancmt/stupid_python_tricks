@@ -140,72 +140,71 @@ class Wheel(object):
                 yield i*modulus + j
 
 
-    def _advance_hazard(self, hazard, sieve):
+    def roll(self, cycles, sieve=None):
         modulus = self.modulus
         spokes = self.spokes
-        prime, cycle, spoke = sieve[hazard]
-        # assert hazard not in self \
-        #     or hazard == prime * self[(cycle, spoke)]
-        next_hazard = hazard
-        while next_hazard in sieve:
-            spoke += 1
-            cycle_incr, spoke = divmod(spoke, len(spokes))
-            cycle += cycle_incr
-            next_hazard = prime * self[(cycle, spoke)]
-        # assert next_hazard in self
-        del sieve[hazard]
-        sieve[next_hazard] = (prime, cycle, spoke)
 
-
-    def roll(self, cycles, sieve=None):
         # populate the sieve if it's not supplied
         if sieve is None:
             sieve = {}
-            for p in takewhile(lambda p: p < self.modulus, simple()):
+            for p in takewhile(lambda p: p < modulus, simple()):
                 if p in self:
                     for q in dropwhile(lambda q: q < p,
-                                       takewhile(lambda q: q < self.modulus,
+                                       takewhile(lambda q: q < modulus,
                                                  simple())):
                         hazard = p*q
-                        if hazard > self.modulus and hazard in self:
+                        if hazard > modulus and hazard in self:
                             sieve[hazard] = (p, None, None)
                             break
 
         # update the sieve for our wheel size
         to_delete = set()
-        to_advance = set()
+        to_insert = set()
         for hazard, (prime, _, __) in sieve.iteritems():
-            if prime not in self:
-                to_delete.add(hazard)
-            elif hazard in self:
+            if hazard in self:
                 cycle, spoke = self._index_unsafe(hazard // prime)
                 sieve[hazard] = (prime, cycle, spoke)
             else:
-                cycle, spoke = self._index_unsafe(hazard // prime)
-                # it's OK to not use clock arithmetic for spoke here
-                # because the very next thing we're going to do to it
-                # is add 1
-                sieve[hazard] = (prime, cycle, spoke-1)
-                to_advance.add(hazard)
+                to_delete.add(hazard)
+                if prime in self:
+                    cycle, spoke = self._index_unsafe(hazard // prime)
+                    to_insert.add((prime, cycle, spoke))
         for hazard in to_delete:
             del sieve[hazard]
-        for hazard in sorted(to_advance,
-                             key=lambda hazard: sieve[hazard][0]):
-            self._advance_hazard(hazard, sieve)
+        for prime, cycle, spoke in sorted(to_insert):
+            hazard = prime * self[(cycle, spoke)]
+            while hazard in sieve:
+                spoke += 1
+                cycle_incr, spoke = divmod(spoke, len(spokes))
+                cycle += cycle_incr
+                hazard = prime * self[(cycle, spoke)]
+            sieve[hazard] = (prime, cycle, spoke)
+        del to_insert
+        del to_delete
         # assert len(frozenset(imap(itemgetter(0), \
         #                           sieve.itervalues()))) \
         #        == len(sieve)
         # assert all(imap(lambda hazard: hazard in self, sieve.iterkeys()))
 
         # perform the wheel factorization
-        candidate_stream = drop(len(self.spokes), self)
+        candidate_stream = drop(len(spokes), self)
         if cycles is not None:
-            candidate_stream = take(len(self.spokes)*cycles, candidate_stream)
+            candidate_stream = take(len(spokes)*cycles, candidate_stream)
 
         # sieve the result
         for candidate in candidate_stream:
             if candidate in sieve:
-                self._advance_hazard(candidate, sieve)
+                hazard = candidate
+                prime, cycle, spoke = sieve[hazard]
+                # assert hazard == prime * self[(cycle, spoke)]
+                while hazard in sieve:
+                    spoke += 1
+                    cycle_incr, spoke = divmod(spoke, len(spokes))
+                    cycle += cycle_incr
+                    hazard = prime * self[(cycle, spoke)]
+                # assert hazard in self
+                del sieve[candidate]
+                sieve[hazard] = (prime, cycle, spoke)
             else:
                 cycle, spoke = self._index_unsafe(candidate)
                 sieve[candidate**2] = (candidate, cycle, spoke)
