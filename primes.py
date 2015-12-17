@@ -123,8 +123,7 @@ class Wheel(object):
         return ret
 
 
-    def __getitem__(self, elem):
-        cycle, spoke = elem
+    def __getitem__(self, (cycle, spoke)):
         return cycle*self.modulus + self.spokes[spoke]
 
 
