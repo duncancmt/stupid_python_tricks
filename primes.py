@@ -15,9 +15,7 @@
 
 from itertools import *
 from fractions import gcd
-from operator import mul, itemgetter
-from bisect import bisect_left
-from numbers import Integral
+from operator import itemgetter
 
 
 def simple():
