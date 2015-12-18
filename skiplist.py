@@ -241,6 +241,14 @@ class SkipList(object):
             prev.span[level:] = (steps[level]+1,)
 
 
+    @property
+    def heights(self):
+        sentinel = self.sentinel
+        node = self.head.next[0]
+        while node is not sentinel:
+            yield len(node.next)
+            node = node.next[0]
+
 
 __all__ = [ 'SkipList' ]
 
