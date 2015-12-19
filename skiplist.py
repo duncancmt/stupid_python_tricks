@@ -111,6 +111,7 @@ class SkipList(object):
                     promote = MAY
                 node = node.next[height-1]
             self.height += 1
+    append = add
 
 
     def remove(self, value):
@@ -165,6 +166,7 @@ class SkipList(object):
         if node is sentinel or node.value != value:
             raise ValueError("%s is not in %s" % (value, type(self).__name__))
         return ret
+    find = index
 
 
     def __getitem__(self, index):
