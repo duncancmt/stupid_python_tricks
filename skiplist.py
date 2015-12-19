@@ -169,6 +169,15 @@ class SkipList(object):
     find = index
 
 
+    def sort(self):
+        """Sort the list in-place.
+    Because SkipLists are always maintained in sort order, this method
+    does nothing
+"""
+
+        pass
+
+
     def __getitem__(self, index):
         if index < -len(self):
             raise IndexError("%s index out of range" % type(self).__name__)
