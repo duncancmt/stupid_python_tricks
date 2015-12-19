@@ -18,7 +18,7 @@ from math import log
 from collections import namedtuple
 
 # TODO: threadsafety
-# TODO: pop, popleft, reverse, count, extend
+# TODO: count, extend
 # TODO: __add__, __radd__, __iadd__, __mul__, __rmul__, __imul__
 # TODO: __contains__
 
@@ -179,6 +179,57 @@ class SkipList(object):
 """
 
         pass
+
+
+    def pop(self):
+        if not len(self):
+            raise IndexError("pop from empty %s" % type(self).__name__)
+        ret = self.tail.value
+        self.tail = self.tail.prev[0]
+
+        sentinel = self.sentinel
+        tail = self.tail
+        for level in xrange(len(tail.next)):
+            tail.next[level] = sentinel
+            tail.span[level] = 1
+
+        self.size -= 1
+        if self.size < (1 << self.height) and self.height > 1:
+            node = self.head
+            while node is not sentinel:
+                node.span.pop()
+                node = node.next.pop()
+            self.height -= 1
+        return ret
+
+
+    def popleft(self):
+        if not len(self):
+            raise IndexError("popleft from empty %s" % type(self).__name__)
+        height = self.height
+        sentinel = self.sentinel
+        head = self.head
+
+        old = head.next[0]
+        ret = old.value
+        for level in xrange(len(old.next)):
+            head.next[level] = old.next[level]
+            head.span[level] += old.span[level]
+        if old.next[0] is sentinel:
+            self.tail = head
+        else:
+            old.next[0].prev[0] = head
+        for level in xrange(height):
+            head.span[level] -= 1
+
+        self.size -= 1
+        if self.size < (1 << height) and height > 1:
+            node = self.head
+            while node is not sentinel:
+                node.span.pop()
+                node = node.next.pop()
+            self.height -= 1
+        return ret
 
 
     def __getitem__(self, index):
