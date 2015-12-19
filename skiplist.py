@@ -261,6 +261,7 @@ if __name__ == '__main__':
 
     from random import randrange, sample, shuffle
     from math import ceil
+    from bisect import bisect_left
     test_size = int(sys.argv[1])
 
     def check_SkipList(sl, l):
@@ -303,7 +304,7 @@ if __name__ == '__main__':
         shuffle(population)
         for elem in population:
             a.remove(elem)
-            del b[b.index(elem)]
+            del b[bisect_left(b, elem)]
         check_SkipList(a, b)
 
     print >>sys.stderr, "Tests passed!"
