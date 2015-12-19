@@ -39,31 +39,25 @@ class SkipList(object):
             self.add(elem)
 
 
-    def walk(self, pred):
-        height = self.height
-        sentinel = self.sentinel
-
-        chain = [sentinel] * height
-        steps = [0] * height
-        node = self.head
-        for level in xrange(height-1, -1, -1):
-            while node.next[level] is not sentinel \
-                  and pred(sum(steps) + node.span[level],
-                           node.next[level].value):
-                steps[level] += node.span[level]
-                node = node.next[level]
-            chain[level] = node
-        return (chain, steps)
-
-
     def add(self, value):
         height = self.height
         sentinel = self.sentinel
         head = self.head
 
+        # Insert after all elements that compare == to value. This
+        # makes sort by insertion stable.
+        chain = [None] * height
+        steps = [0] * height
+        node = self.head
+        for level in xrange(height-1, -1, -1):
+            while node.next[level] is not sentinel \
+                  and node.next[level].value <= value:
+                steps[level] += node.span[level]
+                node = node.next[level]
+            chain[level] = node
+
         new_height = min(height, 1 - int(log(random(), 2.)))
         new = SkipListElem(value, [None]*new_height, [None]*new_height)
-        chain, steps = self.walk(lambda i, x: x <= value)
         i = 0
         for level in xrange(new_height):
             prev = chain[level]
@@ -112,7 +106,14 @@ class SkipList(object):
         height = self.height
         sentinel = self.sentinel
 
-        chain, steps = self.walk(lambda i, x: x < value)
+        chain = [None] * height
+        node = self.head
+        for level in xrange(height-1, -1, -1):
+            while node.next[level] is not sentinel \
+                  and node.next[level].value < value:
+                node = node.next[level]
+            chain[level] = node
+
         old = chain[0].next[0]
         if old is sentinel or chain[0].next[0].value != value:
             raise ValueError("%s is not in %s" % (value, type(self).__name__))
@@ -133,10 +134,18 @@ class SkipList(object):
 
 
     def index(self, value):
-        chain, steps = self.walk(lambda i, x: x <= value)
-        if chain[0].value != value:
-            raise ValueError("%s i snot in %s" % (value, type(self).__name__))
-        return sum(steps)-1
+        sentinel = self.sentinel
+        node = self.head
+        ret = 0
+        for level in xrange(self.height-1, -1, -1):
+            while node.next[level] is not sentinel \
+                  and node.next[level].value < value:
+                ret += node.span[level]
+                node = node.next[level]
+        node = node.next[0]
+        if node is sentinel or node.value != value:
+            raise ValueError("%s is not in %s" % (value, type(self).__name__))
+        return ret
 
 
     def __getitem__(self, index):
@@ -144,12 +153,19 @@ class SkipList(object):
             raise IndexError("%s index out of range" % type(self).__name__)
         elif index < 0:
             index += len(self)
-        index += 1
-        chain, steps = self.walk(lambda i, x: i <= index)
+
         sentinel = self.sentinel
-        if chain[0] is sentinel:
+        steps = -1
+        node = self.head
+        for level in xrange(self.height-1, -1, -1):
+            while node.next[level] is not sentinel \
+                  and steps + node.span[level] < index:
+                steps += node.span[level]
+                node = node.next[level]
+        node = node.next[0]
+        if node is sentinel:
             raise IndexError("%s index out of range" % type(self).__name__)
-        return chain[0].value
+        return node.value
 
 
     def __delitem__(self, index):
@@ -160,10 +176,18 @@ class SkipList(object):
 
         height = self.height
         sentinel = self.sentinel
+        node = self.head
+        steps = -1
+        chain = [None] * height
+        for level in xrange(height-1, -1, -1):
+            while node.next[level] is not sentinel \
+                  and steps + node.span[level] < index:
+                steps += node.span[level]
+                node = node.next[level]
+            chain[level] = node
 
-        chain, steps = self.walk(lambda i, x: i <= index)
         if chain[0].next[0] is sentinel:
-            raise IndexError("%s deletion index out of ragne" % type(self).__name__)
+            raise IndexError("%s deletion index out of range" % type(self).__name__)
         old = chain[0].next[0]
         for level in xrange(len(old.next)):
             prev = chain[level]
