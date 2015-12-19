@@ -23,17 +23,16 @@ from collections import namedtuple
 # TODO: __contains__
 
 
-SkipListElem = namedtuple('SkipListElem', ('value', 'next', 'span'))
+SkipListElem = namedtuple('SkipListElem', ('value', 'next', 'prev', 'span'))
 
 
 
 class SkipList(object):
     def __init__(self, iterable=()):
-        height = 1
-        sentinel = object()
-        self.height = height
-        self.sentinel = sentinel
-        self.head = SkipListElem(sentinel, [sentinel]*height, [1]*height)
+        self.height = 1
+        self.sentinel = object()
+        self.head = SkipListElem(value=self.sentinel, next=[self.sentinel]*self.height, prev=[None], span=[1]*self.height)
+        self.tail = self.head
         self.size = 0
         for elem in iterable:
             self.add(elem)
@@ -64,7 +63,7 @@ class SkipList(object):
             chain[level] = node
 
         new_height = min(height, 1 - int(log(random(), 2.)))
-        new = SkipListElem(value, [None]*new_height, [None]*new_height)
+        new = SkipListElem(value=value, next=[None]*new_height, prev=[chain[0]], span=[None]*new_height)
         i = 0
         for level in xrange(new_height):
             prev = chain[level]
@@ -73,6 +72,10 @@ class SkipList(object):
             new.span[level] = prev.span[level] - i
             prev.span[level] = i
             i += steps[level]
+        if new.next[0] is sentinel:
+            self.tail = new
+        else:
+            new.next[0].prev[0] = new
         for level in xrange(height):
             chain[level].span[level] += 1
 
@@ -133,6 +136,10 @@ class SkipList(object):
             prev = chain[level]
             prev.next[level] = old.next[level]
             prev.span[level] += old.span[level]
+        if old.next[0] is sentinel:
+            self.tail = old.prev[0]
+        else:
+            old.next[0].prev[0] = old.prev[0]
         for level in xrange(height):
             chain[level].span[level] -= 1
 
@@ -219,6 +226,10 @@ class SkipList(object):
             prev = chain[level]
             prev.next[level] = old.next[level]
             prev.span[level] += old.span[level]
+        if old.next[0] is sentinel:
+            self.tail = old.prev[0]
+        else:
+            old.next[0].prev[0] = old.prev[0]
         for level in xrange(height):
             chain[level].span[level] -= 1
 
@@ -241,6 +252,14 @@ class SkipList(object):
         while node is not sentinel:
             yield node.value
             node = node.next[0]
+
+
+    def __reversed__(self):
+        head = self.head
+        node = self.tail
+        while node is not head:
+            yield node.value
+            node = node.prev[0]
 
 
     def preen(self):
