@@ -307,9 +307,9 @@ class SkipList(object):
 
 
     def preen(self):
-        """In the unlikely event that a SkipList's distribution of element layers
+        """In the unlikely event that a SkipList's distribution of element levels
     is causing pathological performance (either in space or time),
-    SkipList.preen() will rebuild those layers and restore the
+    SkipList.preen() will rebuild those levels and restore the
     SkipList's expected performance.
 """
 
@@ -354,7 +354,7 @@ class SkipList(object):
 
 
     @property
-    def layers(self):
+    def levels(self):
         sentinel = self.sentinel
         node = self.head[2]
         while node is not sentinel:
