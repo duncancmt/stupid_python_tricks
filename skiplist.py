@@ -18,7 +18,13 @@ from math import log
 from collections import namedtuple
 
 # TODO: threadsafety
-
+# TODO: pop
+# TODO: popleft
+# TODO: reverse
+# TODO: count
+# TODO: extend
+# TODO: __add__, __radd__, __iadd__, __mul__, __rmul__, __imul__
+# TODO: __contains__
 
 
 SkipListElem = namedtuple('SkipListElem', ('value', 'next', 'span'))
