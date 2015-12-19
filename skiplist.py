@@ -181,28 +181,6 @@ class SkipList(object):
         pass
 
 
-    def pop(self):
-        if not len(self):
-            raise IndexError("pop from empty %s" % type(self).__name__)
-        ret = self.tail.value
-        self.tail = self.tail.prev[0]
-
-        sentinel = self.sentinel
-        tail = self.tail
-        for level in xrange(len(tail.next)):
-            tail.next[level] = sentinel
-            tail.span[level] = 1
-
-        self.size -= 1
-        if self.size < (1 << self.height) and self.height > 1:
-            node = self.head
-            while node is not sentinel:
-                node.span.pop()
-                node = node.next.pop()
-            self.height -= 1
-        return ret
-
-
     def popleft(self):
         if not len(self):
             raise IndexError("popleft from empty %s" % type(self).__name__)
@@ -252,7 +230,7 @@ class SkipList(object):
         return node.value
 
 
-    def __delitem__(self, index):
+    def pop(self, index=-1):
         if index < -len(self):
             raise IndexError("%s index out of range" % type(self).__name__)
         elif index < 0:
@@ -271,7 +249,7 @@ class SkipList(object):
             chain[level] = node
 
         if chain[0].next[0] is sentinel:
-            raise IndexError("%s deletion index out of range" % type(self).__name__)
+            raise IndexError("%s index out of range" % type(self).__name__)
         old = chain[0].next[0]
         for level in xrange(len(old.next)):
             prev = chain[level]
@@ -291,6 +269,11 @@ class SkipList(object):
                 node.span.pop()
                 node = node.next.pop()
             self.height -= 1
+        return old.value
+
+
+    def __delitem__(self, index):
+        self.pop(index)
 
 
     def __len__(self):
