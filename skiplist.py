@@ -300,7 +300,7 @@ class SkipList(object):
 
 
     @property
-    def heights(self):
+    def layers(self):
         sentinel = self.sentinel
         node = self.head.next[0]
         while node is not sentinel:
