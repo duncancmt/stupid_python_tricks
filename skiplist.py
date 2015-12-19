@@ -182,6 +182,11 @@ class SkipList(object):
 
 
     def popleft(self):
+        """Remove and return the first (least) element.
+    This method is slightly more efficient than SkipList.pop(0)
+    because it doesn't have to perform the SkipList scan
+"""
+
         if not len(self):
             raise IndexError("popleft from empty %s" % type(self).__name__)
         height = self.height
@@ -231,6 +236,9 @@ class SkipList(object):
 
 
     def pop(self, index=-1):
+        """Remove and return the element at `index`
+"""
+
         if index < -len(self):
             raise IndexError("%s index out of range" % type(self).__name__)
         elif index < 0:
