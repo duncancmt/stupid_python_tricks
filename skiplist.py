@@ -18,7 +18,6 @@
 from random import random, getrandbits
 from math import log
 from collections import namedtuple
-# from weakref import WeakSet
 
 # TODO: threadsafety
 
@@ -36,7 +35,6 @@ class SkipList(object):
         self.sentinel = sentinel
         self.head = SkipListElem(sentinel, [sentinel]*height, [1]*height)
         self.size = 0
-        # self.iterators = WeakSet()
         for elem in iterable:
             self.add(elem)
 
