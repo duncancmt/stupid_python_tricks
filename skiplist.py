@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Lesser General Public License along
 # with stupid_python_tricks.  If not, see <http://www.gnu.org/licenses/>.
 
-from random import random, getrandbits
+from random import getrandbits
 from math import log
 from collections import namedtuple
 
@@ -62,7 +62,10 @@ class SkipList(object):
                 node = node.next[level]
             chain[level] = node
 
-        new_height = min(height, 1 - int(log(random(), 2.)))
+        sample = 1 << height
+        while sample == 1 << height:
+            sample = getrandbits(height) + 1
+        new_height = int(log(sample, 2.)) + 1
         new = SkipListElem(value=value, next=[None]*new_height, prev=[chain[0]], span=[None]*new_height)
         i = 0
         for level in xrange(new_height):
@@ -80,7 +83,7 @@ class SkipList(object):
             chain[level].span[level] += 1
 
         self.size += 1
-        if self.size > 2**(height + 1):
+        if self.size > 1 << (height + 1):
             MAY, MUST, MUST_NOT = object(), object(), object()
             promote = MAY
             node = self.head
