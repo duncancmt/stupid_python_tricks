@@ -313,6 +313,10 @@ class SkipList(object):
             node = node.prev[0]
 
 
+    def __repr__(self):
+        return "%s.%s(%s)" % (__name__, type(self).__name__, list(self))
+
+
     def preen(self):
         """In the unlikely event that a SkipList's distribution of element layers
     is causing pathological performance (either in space or time),
