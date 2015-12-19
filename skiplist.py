@@ -28,7 +28,7 @@ class SkipList(object):
         self.sentinel = object()
 
         # value, prev, next[0], span[0], next[1], span[1]...
-        self.head = [self.sentinel, None, self.sentinel, 1]
+        self.head = [object(), self.sentinel, self.sentinel, 1]
 
         self.tail = self.head
         self.size = 0
@@ -48,65 +48,67 @@ class SkipList(object):
         sentinel = self.sentinel
         head = self.head
 
-        # Insert after all elements that compare == to value. This
-        # makes sort by insertion stable.
-        chain = [None] * height
-        steps = [0] * height
+        chain = [None] * (2 + 2*height)
         node = self.head
-        for level in xrange(height-1, -1, -1):
-            while node[2 + 2*level] is not sentinel \
-                  and node[2 + 2*level][0] <= value:
-                steps[level] += node[3 + 2*level]
-                node = node[2 + 2*level]
+        for level in xrange(2*height, 0, -2):
+            chain[level + 1] = 0
+            while node[level] is not sentinel \
+                  and node[level][0] <= value:
+                chain[level + 1] += node[level + 1]
+                node = node[level]
             chain[level] = node
 
         sample = 1 << height
         while sample == 1 << height:
             sample = getrandbits(height) + 1
         new_height = int(log(sample, 2.)) + 1
-        new = [value, chain[0]] + [None, None]*new_height
+        new = [value, chain[2]] + [None, None]*new_height
         i = 0
-        for level in xrange(new_height):
+        for level in xrange(2, 2 + 2*new_height, 2):
             prev = chain[level]
-            new[2 + 2*level] = prev[2 + 2*level]
-            prev[2 + 2*level] = new
-            new[3 + 2*level] = prev[3 + 2*level] - i
-            prev[3 + 2*level] = i
-            i += steps[level]
+            new[level] = prev[level]
+            prev[level] = new
+            new[level + 1] = prev[level + 1] - i
+            prev[level + 1] = i
+            i += chain[level + 1]
         if new[2] is sentinel:
             self.tail = new
         else:
             new[2][1] = new
-        for level in xrange(height):
-            chain[level][3 + 2*level] += 1
+        for level in xrange(2, 2 + 2*height, 2):
+            chain[level][level + 1] += 1
 
         self.size += 1
         if self.size > 1 << (height + 1):
             MAY, MUST, MUST_NOT = object(), object(), object()
+            TOP_PTR = 2 + 2*(height-1)
+            TOP_SPAN = TOP_PTR + 1
+            NEW_PTR = TOP_PTR + 2
+            NEW_SPAN = TOP_SPAN + 2
             promote = MAY
             node = self.head
-            node.extend([sentinel, node[3 + 2*(height-1)]])
+            node.extend([sentinel, node[TOP_SPAN]])
             prev = node
-            node = node[2 + 2*(height-1)]
+            node = node[TOP_PTR]
             while node is not sentinel:
                 if promote is MAY:
                     if getrandbits(1):
-                        node.extend([sentinel, node[3 + 2*(height-1)]])
-                        prev[2 + 2*height] = node
+                        node.extend([sentinel, node[TOP_SPAN]])
+                        prev[NEW_PTR] = node
                         prev = node
                         promote = MUST_NOT
                     else:
-                        prev[3 + 2*height] += node[3 + 2*(height-1)]
+                        prev[NEW_SPAN] += node[TOP_SPAN]
                         promote = MUST
                 elif promote is MUST:
-                    node.extend([sentinel, node[3 + 2*(height-1)]])
-                    prev[2 + 2*height] = node
+                    node.extend([sentinel, node[TOP_SPAN]])
+                    prev[NEW_PTR] = node
                     prev = node
                     promote = MAY
                 else: # promote is MUST_NOT
-                    prev[3 + 2*height] += node[3 + 2*(height-1)]
+                    prev[NEW_SPAN] += node[TOP_SPAN]
                     promote = MAY
-                node = node[2 + 2*(height-1)]
+                node = node[TOP_PTR]
             self.height += 1
     append = add
 
@@ -119,27 +121,27 @@ class SkipList(object):
         height = self.height
         sentinel = self.sentinel
 
-        chain = [None] * height
+        chain = [None] * (2 + 2*height)
         node = self.head
-        for level in xrange(height-1, -1, -1):
-            while node[2 + 2*level] is not sentinel \
-                  and node[2 + 2*level][0] < value:
-                node = node[2 + 2*level]
+        for level in xrange(2*height, 0, -2):
+            while node[level] is not sentinel \
+                  and node[level][0] < value:
+                node = node[level]
             chain[level] = node
 
-        old = chain[0][2]
-        if old is sentinel or chain[0][2][0] != value:
+        old = chain[2][2]
+        if old is sentinel or chain[2][2][0] != value:
             raise ValueError("%s is not in %s" % (value, type(self).__name__))
-        for level in xrange((len(chain[0][2]) - 2) // 2):
+        for level in xrange(2, len(chain[2][2]), 2):
             prev = chain[level]
-            prev[2 + 2*level] = old[2 + 2*level]
-            prev[3 + 2*level] += old[3 + 2*level]
+            prev[level] = old[level]
+            prev[level + 1] += old[level + 1]
         if old[2] is sentinel:
             self.tail = old[1]
         else:
             old[2][1] = old[1]
-        for level in xrange(height):
-            chain[level][3 + 2*level] -= 1
+        for level in xrange(2, 2 + 2*height, 2):
+            chain[level][level + 1] -= 1
 
         self.size -= 1
         if self.size < (1 << height) and height > 1:
@@ -158,11 +160,11 @@ class SkipList(object):
         sentinel = self.sentinel
         node = self.head
         ret = 0
-        for level in xrange(self.height-1, -1, -1):
-            while node[2 + 2*level] is not sentinel \
-                  and node[2 + 2*level][0] < value:
-                ret += node[3 + 2*level]
-                node = node[2 + 2*level]
+        for level in xrange(2*self.height, 0, -2):
+            while node[level] is not sentinel \
+                  and node[level][0] < value:
+                ret += node[level + 1]
+                node = node[level]
         node = node[2]
         if node is sentinel or node[0] != value:
             raise ValueError("%s is not in %s" % (value, type(self).__name__))
@@ -193,15 +195,16 @@ class SkipList(object):
 
         old = head[2]
         ret = old[0]
-        for level in xrange((len(old) - 2) // 2):
-            head[2 + 2*level] = old[2 + 2*level]
-            head[3 + 2*level] += old[3 + 2*level]
+        for level in xrange(2, len(old), 2):
+            head[level] = old[level]
+            head[level + 1] += old[level + 1]
         if old[2] is sentinel:
             self.tail = head
         else:
             old[2][1] = head
-        for level in xrange(height):
-            head[3 + 2*level] -= 1
+        for level in xrange(2, 2 + 2*height, 2):
+            # TODO:
+            head[level + 1] -= 1
 
         self.size -= 1
         if self.size < (1 << height) and height > 1:
@@ -222,11 +225,11 @@ class SkipList(object):
         sentinel = self.sentinel
         steps = -1
         node = self.head
-        for level in xrange(self.height-1, -1, -1):
-            while node[2 + 2*level] is not sentinel \
-                  and steps + node[3 + 2*level] < index:
-                steps += node[3 + 2*level]
-                node = node[2 + 2*level]
+        for level in xrange(2*self.height, 0, -2):
+            while node[level] is not sentinel \
+                  and steps + node[level + 1] < index:
+                steps += node[level + 1]
+                node = node[level]
         node = node[2]
         if node is sentinel:
             raise IndexError("%s index out of range" % type(self).__name__)
@@ -246,27 +249,27 @@ class SkipList(object):
         sentinel = self.sentinel
         node = self.head
         steps = -1
-        chain = [None] * height
-        for level in xrange(height-1, -1, -1):
-            while node[2 + 2*level] is not sentinel \
-                  and steps + node[3 + 2*level] < index:
-                steps += node[3 + 2*level]
-                node = node[2 + 2*level]
+        chain = [None] * (2 + 2*height)
+        for level in xrange(2*height, 0, -2):
+            while node[level] is not sentinel \
+                  and steps + node[level + 1] < index:
+                steps += node[level + 1]
+                node = node[level]
             chain[level] = node
 
-        old = chain[0][2]
+        old = chain[2][2]
         if old is sentinel:
             raise IndexError("%s index out of range" % type(self).__name__)
-        for level in xrange((len(old) - 2) // 2):
+        for level in xrange(2, len(old), 2):
             prev = chain[level]
-            prev[2 + 2*level] = old[2 + 2*level]
-            prev[3 + 2*level] += old[3 + 2*level]
+            prev[level] = old[level]
+            prev[level + 1] += old[level + 1]
         if old[2] is sentinel:
             self.tail = old[1]
         else:
             old[2][1] = old[1]
-        for level in xrange(height):
-            chain[level][3 + 2*level] -= 1
+        for level in xrange(2, 2*height + 2, 2):
+            chain[level][level + 1] -= 1
 
         self.size -= 1
         if self.size < (1 << height) and height > 1:
@@ -306,6 +309,15 @@ class SkipList(object):
         return "%s.%s(%s)" % (__name__, type(self).__name__, list(self))
 
 
+    def __del__(self):
+        # break the reference cycle formed by the reverse pointers
+        node = self.head
+        sentinel = self.sentinel
+        while node is not sentinel:
+            node[1] = None
+            node = node[2]
+
+
     def preen(self):
         """In the unlikely event that a SkipList's distribution of element levels
     is causing pathological performance (either in space or time),
@@ -318,39 +330,36 @@ class SkipList(object):
         head = self.head
 
         MAY, MUST, MUST_NOT = object(), object(), object()
-        promote = [None] + [MAY]  * (height-1)
-        steps   = [None] + [0]    * (height-1)
-        chain   = [None] + [head] * (height-1)
+        promote = [None] * 4 + [MAY,  None] * (height-1)
+        chain   = [None] * 4 + [head,    0] * (height-1)
         node = head[2]
         while node is not sentinel:
-            for level in xrange(1, height):
-                steps[level] += 1
-            for level in xrange(1, height):
+            for level in xrange(4, 2 + 2*height, 2):
+                # TODO:
+                chain[level + 1] += 1
+            for level in xrange(4, 2 + 2*height, 2):
                 if promote[level] is MAY:
                     if getrandbits(1):
                         prev = chain[level]
-                        prev[2 + 2*level:] = [node, steps[level]]
-                        chain[level] = node
-                        steps[level] = 0
+                        prev[level:] = [node, chain[level + 1]]
+                        chain[level:level + 2] = [node, 0]
                         promote[level] = MUST_NOT
                     else:
                         promote[level] = MUST
-                        del node[2 + 2*level:]
+                        del node[level:]
                         break
                 elif promote[level] is MUST:
                     prev = chain[level]
-                    prev[2 + 2*level:] = [node, steps[level]]
-                    chain[level] = node
-                    steps[level] = 0
+                    prev[level:] = [node, chain[level + 1]]
+                    chain[level:level + 2] = [node, 0]
                     promote[level] = MAY
                 else: # promote[level] is MUST_NOT
                     promote[level] = MAY
-                    del node[2 + 2*level:]
+                    del node[level:]
                     break
             node = node[2]
-        for level in xrange(1, height):
-            prev = chain[level]
-            prev[2 + 2*level:] = [sentinel, steps[level]+1]
+        for level in xrange(4, 2 + 2*height, 2):
+            chain[level][level:] = [sentinel, chain[level + 1] + 1]
 
 
     @property
