@@ -323,17 +323,17 @@ if __name__ == '__main__':
     test_size = int(sys.argv[1])
 
     def check_SkipList(sl, l):
+        s = frozenset(l)
         print >>sys.stderr, "checking"
-        r = range(len(sl))
         assert sorted(sl) == l
-        assert [ sl[i] for i in r ] == l
-        assert all(sl[sl.index(v)] == v for v in sl)
+        assert [ sl[i] for i in xrange(len(l)) ] == l
+        assert all(sl.index(v) == bisect_left(l, v) for v in s)
         print >>sys.stderr, "preening"
         sl.preen()
         print >>sys.stderr, "checking"
         assert sorted(sl) == l
-        assert [ sl[i] for i in r ] == l
-        assert all(sl[sl.index(v)] == v for v in sl)
+        assert [ sl[i] for i in xrange(len(l)) ] == l
+        assert all(sl.index(v) == bisect_left(l, v) for v in s)
 
 
     print >>sys.stderr, "Creating a SkipList with %d random elements" % test_size
