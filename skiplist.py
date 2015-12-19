@@ -44,6 +44,13 @@ class SkipList(object):
 
 
     def add(self, value):
+        """Insert the argument `value` into the SkipList.
+    The insertion position of `value` is *after* any existing elements
+    that compare equal to `value`; this preserves insertion order when
+    iterating and means that `iter(SkipList(iterable))` is a stable
+    sort over `iterable`.
+"""
+
         height = self.height
         sentinel = self.sentinel
         head = self.head
@@ -107,6 +114,10 @@ class SkipList(object):
 
 
     def remove(self, value):
+        """Remove the argument `value` from the SkipList.
+        The *first* element that compares equal to `value` is removed.
+"""
+
         height = self.height
         sentinel = self.sentinel
 
@@ -138,6 +149,10 @@ class SkipList(object):
 
 
     def index(self, value):
+        """Return the first index at which an object comparing equal to `value`
+    can be found.
+"""
+
         sentinel = self.sentinel
         node = self.head
         ret = 0
@@ -222,6 +237,12 @@ class SkipList(object):
 
 
     def preen(self):
+        """In the unlikely event that a SkipList's distribution of element layers
+    is causing pathological performance (either in space or time),
+    SkipList.preen() will rebuild those layers and restore the
+    SkipList's expected performance.
+"""
+
         height = self.height
         sentinel = self.sentinel
         head = self.head
