@@ -13,8 +13,6 @@
 # You should have received a copy of the GNU Lesser General Public License along
 # with stupid_python_tricks.  If not, see <http://www.gnu.org/licenses/>.
 
-# this module mostly taken from https://code.activestate.com/recipes/576930/
-
 from random import random, getrandbits
 from math import log
 from collections import namedtuple
