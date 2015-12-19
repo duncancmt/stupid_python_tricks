@@ -332,9 +332,9 @@ if __name__ == '__main__':
     if len(sys.argv) != 2:
         print "Usage: %s test_size" % sys.argv[0]
 
-    from random import randrange, sample, shuffle
+    from random import randrange, sample, shuffle, choice
     from math import ceil
-    from bisect import bisect_left
+    from bisect import bisect_left, insort_left
     from itertools import imap
     from operator import eq
     test_size = int(sys.argv[1])
@@ -391,5 +391,30 @@ if __name__ == '__main__':
             a.remove(elem)
             del b[bisect_left(b, elem)]
         check_SkipList(a, b)
+
+
+    print >>sys.stderr, "Testing mixed insertion, deletion by index, and deletion by value"
+    a, b = create_test_lists(test_size*2, test_size//2)
+    check_SkipList(a, b)
+    report = [0, 0, 0]
+    for _ in xrange(test_size//2):
+        what = getrandbits(2)
+        if what == 0 or what == 1:
+            e = randrange(test_size*2)
+            a.add(e)
+            insort_left(b, e)
+            report[0] += 1
+        elif what == 2:
+            i = randrange(len(b))
+            del a[i]
+            del b[i]
+            report[1] += 1
+        else: # what == 3
+            e = choice(b)
+            a.remove(e)
+            del b[bisect_left(b, e)]
+            report[2] += 1
+    print "Performed %d insertions, %d deletions by index, and %d deletions by value" % tuple(report)
+    check_SkipList(a, b)
 
     print >>sys.stderr, "Tests passed!"
