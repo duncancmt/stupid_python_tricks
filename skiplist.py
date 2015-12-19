@@ -335,45 +335,57 @@ if __name__ == '__main__':
     from random import randrange, sample, shuffle
     from math import ceil
     from bisect import bisect_left
+    from itertools import imap
+    from operator import eq
     test_size = int(sys.argv[1])
+
+    def create_test_lists(max_elem, list_size):
+        print >>sys.stderr, "Creating a SkipList with %d random elements less than %d" % (list_size, max_elem)
+        a = SkipList()
+        b = []
+        for e in ( randrange(max_elem*2) for _ in xrange(list_size) ):
+            a.add(e)
+            b.append(e)
+        b.sort()
+        return (a, b)
 
     def check_SkipList(sl, l):
         s = frozenset(l)
         print >>sys.stderr, "checking"
-        assert sorted(sl) == l
+        assert all(imap(eq, l, sl))
+        assert all(imap(eq, reversed(l), reversed(sl)))
         assert [ sl[i] for i in xrange(len(l)) ] == l
         assert all(sl.index(v) == bisect_left(l, v) for v in s)
         print >>sys.stderr, "preening"
         sl.preen()
         print >>sys.stderr, "checking"
-        assert sorted(sl) == l
+        assert all(imap(eq, l, sl))
+        assert all(imap(eq, reversed(l), reversed(sl)))
         assert [ sl[i] for i in xrange(len(l)) ] == l
         assert all(sl.index(v) == bisect_left(l, v) for v in s)
 
 
-    print >>sys.stderr, "Creating a SkipList with %d random elements" % test_size
-    a = SkipList( randrange(test_size*2) for _ in xrange(test_size) )
-    b = list(a)
+    print >>sys.stderr, "Testing deletion by index"
+    a, b = create_test_lists(test_size*2, test_size)
     check_SkipList(a, b)
 
     while a:
         delete_count = int(ceil(len(a) / 2.))
         print >>sys.stderr, "Deleting %d indexes (%d remain)" % (delete_count, len(a) - delete_count)
         for _ in xrange(delete_count):
-            i = randrange(len(a))
+            i = randrange(len(b))
             del a[i]
             del b[i]
         check_SkipList(a, b)
 
-    print >>sys.stderr, "Creating a SkipList with %d random elements" % test_size
-    a = SkipList( randrange(test_size*2) for _ in xrange(test_size) )
-    b = list(a)
+    print >>sys.stderr, "Testing deletion by value"
+    a, b = create_test_lists(test_size*2, test_size)
     check_SkipList(a, b)
 
     while a:
         delete_count = int(ceil(len(a) / 2.))
         print >>sys.stderr, "Deleting %d elements (%d remain)" % (delete_count, len(a) - delete_count)
-        population = sample(a, delete_count)
+        population = sample(b, delete_count)
         shuffle(population)
         for elem in population:
             a.remove(elem)
