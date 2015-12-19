@@ -400,17 +400,25 @@ if __name__ == '__main__':
     def check_SkipList(sl, l):
         s = frozenset(l)
         print >>sys.stderr, "checking"
-        assert all(imap(eq, l, sl))
-        assert all(imap(eq, reversed(l), reversed(sl)))
-        assert [ sl[i] for i in xrange(len(l)) ] == l
-        assert all(sl.index(v) == bisect_left(l, v) for v in s)
+        if not all(imap(eq, l, sl)):
+            raise RuntimeError('SkipList and test list do not have the same content')
+        if not all(imap(eq, reversed(l), reversed(sl))):
+            raise RuntimeError('SkipList reversed iterator is broken')
+        if not [ sl[i] for i in xrange(len(l)) ] == l:
+            raise RuntimeError('SkipList __getitem__ is broken')
+        if not all(sl.index(v) == bisect_left(l, v) for v in s):
+            raise RuntimeError('SkipList index is broken')
         print >>sys.stderr, "preening"
         sl.preen()
         print >>sys.stderr, "checking"
-        assert all(imap(eq, l, sl))
-        assert all(imap(eq, reversed(l), reversed(sl)))
-        assert [ sl[i] for i in xrange(len(l)) ] == l
-        assert all(sl.index(v) == bisect_left(l, v) for v in s)
+        if not all(imap(eq, l, sl)):
+            raise RuntimeError('SkipList and test list do not have the same content')
+        if not all(imap(eq, reversed(l), reversed(sl))):
+            raise RuntimeError('SkipList reversed iterator is broken')
+        if not [ sl[i] for i in xrange(len(l)) ] == l:
+            raise RuntimeError('SkipList __getitem__ is broken')
+        if not all(sl.index(v) == bisect_left(l, v) for v in s):
+            raise RuntimeError('SkipList index is broken')
 
 
     print >>sys.stderr, "Testing deletion by index"
