@@ -83,7 +83,7 @@ class SkipList(object):
         self.size += 1
         if self.size > 2**(height + 1):
             MAY, MUST, MUST_NOT = object(), object(), object()
-            promote = MUST
+            promote = MAY
             node = self.head
             node.next.append(sentinel)
             node.span.append(node.span[height-1])
@@ -259,7 +259,7 @@ class SkipList(object):
         head = self.head
 
         MAY, MUST, MUST_NOT = object(), object(), object()
-        promote = [None] + [MUST] * (height-1)
+        promote = [None] + [MAY]  * (height-1)
         steps   = [None] + [0]    * (height-1)
         chain   = [None] + [head] * (height-1)
         node = head.next[0]
