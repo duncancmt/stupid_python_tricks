@@ -17,7 +17,7 @@ from random import getrandbits
 from math import log
 
 # TODO: threadsafety
-# TODO: count, extend
+# TODO: count
 # TODO: __add__, __radd__, __iadd__, __mul__, __rmul__, __imul__
 # TODO: __contains__
 
@@ -32,8 +32,7 @@ class SkipList(object):
 
         self.tail = self.head
         self.size = 0
-        for elem in iterable:
-            self.add(elem)
+        self.extend(iterable)
 
 
     def add(self, value):
@@ -111,6 +110,12 @@ class SkipList(object):
                 node = node[TOP_PTR]
             self.height += 1
     append = add
+
+
+    def extend(self, iterable):
+        add = self.add
+        for elem in iterable:
+            add(elem)
 
 
     def remove(self, value):
