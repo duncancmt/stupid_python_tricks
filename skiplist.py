@@ -371,6 +371,16 @@ class SkipList(object):
             node = node[2]
 
 
+    @property
+    def spans(self):
+        sentinel = self.sentinel
+        node = self.head[2]
+        while node is not sentinel:
+            yield node[-1]
+            node = node[2]
+
+
+
 __all__ = [ 'SkipList' ]
 
 
