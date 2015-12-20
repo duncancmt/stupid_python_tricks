@@ -483,4 +483,28 @@ if __name__ == '__main__':
     print "Performed %d insertions, %d deletions by index, and %d deletions by value" % tuple(report)
     check_SkipList(a, b)
 
+
+    def check_hist(sl):
+        print "checking"
+        epsilon = 0.05
+        cutoff = 50
+        hist = [0] * (sl.height+1)
+        for level in sl.levels:
+            hist[level] += 1
+        last = len(sl)
+        for h in hist:
+            if h < cutoff:
+                break
+            if h < (last / 2. * (1 - epsilon)) or h > (last / 2. * (1 + epsilon)):
+                raise RuntimeError('SkipList distribution is broken')
+            last = h
+
+
+    print >>sys.stderr, "Testing distribution of heights"
+    a, b = create_test_lists(test_size*2, test_size)
+    del b
+    check_hist(a)
+    a.preen()
+    check_hist(a)
+
     print >>sys.stderr, "Tests passed!"
