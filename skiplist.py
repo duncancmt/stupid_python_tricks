@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Lesser General Public License along
 # with stupid_python_tricks.  If not, see <http://www.gnu.org/licenses/>.
 
-from random import getrandbits
+from random import random, getrandbits
 from math import log
 
 # TODO: threadsafety
@@ -58,10 +58,7 @@ class SkipList(object):
                 node = node[level]
             chain[level] = node
 
-        sample = 1 << height
-        while sample == 1 << height:
-            sample = getrandbits(height) + 1
-        new_height = int(log(sample, 2.)) + 1
+        new_height = min(height, 1 - int(log(random(), 2.)))
         new = [value, chain[2]] + [None, None]*new_height
         i = 0
         for level in xrange(2, 2 + 2*new_height, 2):
