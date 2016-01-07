@@ -161,7 +161,7 @@ class BasicProxy(object):
         # always execute, then only if the result of the descriptor is
         # identical to the cached value, will the cached result be returned
         try:
-            cache = self._munge_cache
+            cache = object.__getattribute__(self, '_munge_cache')
         except AttributeError:
             cache = {}
             object.__setattr__(self, '_munge_cache', cache)
