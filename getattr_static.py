@@ -126,11 +126,19 @@ def dir_static(obj):
     dictproxy = type(type.__dict__)
     for entry in getmro_static(klass):
         if _shadowed_dict(type(entry)) is _sentinel:
-            result.update(dictproxy.iterkeys(entry.__dict__))
+            try:
+                keys = dictproxy.iterkeys(entry.__dict__)
+            except TypeError:
+                keys = dict.iterkeys(entry.__dict__)
+            result.update(keys)
 
     if obj is klass:
         for entry in getmro_static(type(klass)):
-            result.update(dictproxy.iterkeys(entry.__dict__))
+            try:
+                keys = dictproxy.iterkeys(entry.__dict__)
+            except TypeError:
+                keys = dict.iterkeys(entry.__dict__)
+            result.update(keys)
 
     return tuple(result)
 
