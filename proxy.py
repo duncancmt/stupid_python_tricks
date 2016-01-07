@@ -245,7 +245,7 @@ class BasicProxy(object):
         return retval
 
     @classmethod
-    def _get_class_proxy(cls, obj, *args, **kwargs):
+    def _get_class_proxy(cls, objclass, *args, **kwargs):
         """
         Return the proxy class from the cache if it's already been created.
         Otherwise, create it and return it.
@@ -260,11 +260,11 @@ class BasicProxy(object):
             except KeyError:
                 cls._class_proxy_cache = cache = {}
 
-        key = (type(obj), tuple(args), tuple(sorted(kwargs.iteritems())))
+        key = (objclass, tuple(args), tuple(sorted(kwargs.iteritems())))
         try:
             proxy_class = cache[key]
         except KeyError:
-            proxy_class = cls._create_class_proxy(type(obj), *args, **kwargs)
+            proxy_class = cls._create_class_proxy(objclass, *args, **kwargs)
             try:
                 cache[key] = proxy_class
             except TypeError:
@@ -279,7 +279,7 @@ class BasicProxy(object):
         note: _class_proxy_cache is unique per deriving class (each deriving
         class must hold its own cache)
         """
-        proxy_class = cls._get_class_proxy(obj, *args, **kwargs)
+        proxy_class = cls._get_class_proxy(type(obj), *args, **kwargs)
         ins = object.__new__(proxy_class)
         # It is unnecessary to call __init__ directly here.
         # python will call it after __new__ because isinstance(ins, cls)
