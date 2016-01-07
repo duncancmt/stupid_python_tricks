@@ -193,7 +193,12 @@ class BasicProxy(object):
         creating the proxy class"""
         def make_method(name):
             # we call getattr_static here to get the unbound method
-            @decorates(getattr_static(objclass, name))
+
+            # TODO: This breaks for some kinds of builtin objects.
+            # I have yet to find a use of proxies that this breaks, so
+            # it's gonna be commented-out for the time being.
+
+            # @decorates(getattr_static(objclass, name))
             def method(self, *args, **kw):
                 # _special_names are *all* methods, they *must not* be munged to descriptors
                 # we call getattr here to get the bound method of the original object
