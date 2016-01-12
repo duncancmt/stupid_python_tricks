@@ -156,6 +156,13 @@ class LRUDict(MutableMapping):
                           imap(lambda (k,v): (deepcopy(k, memo), deepcopy(v, memo)),
                                self.iteritems()))
 
+    def __del__(self):
+        # break the reference cycle formed by the prev/next pointers
+        # in the doubly-linked list
+        sentinel = self.sentinel
+        for line in self.cache.itervalues():
+            line[0] = sentinel
+            line[1] = sentinel
 
 
 class IterationGuard(object):
