@@ -41,56 +41,51 @@ class LRUDict(MutableMapping):
         return [ sentinel, sentinel, key, value ]
 
     def _mark_recent_use(self, link):
-        PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         with self.lock:
             root = self.root
             link_prev, link_next, key, result = link
-            link_prev[NEXT] = link_next
-            link_next[PREV] = link_prev
-            last = root[PREV]
-            last[NEXT] = root[PREV] = link
-            link[PREV] = last
-            link[NEXT] = root
+            link_prev[1] = link_next
+            link_next[0] = link_prev
+            last = root[0]
+            last[1] = root[0] = link
+            link[0] = last
+            link[1] = root
 
     def __getitem__(self, key):
-        PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         with self.lock:
             try:
                 link = self.cache[key]
                 self._mark_recent_use(link)
                 self.hits += 1
-                return link[VALUE]
+                return link[3]
             except KeyError:
                 self.misses += 1
                 raise
 
     def _add_new(self, link):
-        PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         with self.lock:
-            self.cache[link[KEY]] = link
+            self.cache[link[2]] = link
             root = self.root
-            last = root[PREV]
-            last[NEXT] = link
-            link[NEXT] = root
-            link[PREV] = last
-            root[PREV] = link
+            last = root[0]
+            last[1] = link
+            link[1] = root
+            link[0] = last
+            root[0] = link
 
     def replace_oldest(self, key, value):
-        PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         with self.lock:
             oldroot = self.root
             cache = self.cache
             cache[key] = oldroot
-            oldroot[KEY] = key
-            oldroot[VALUE] = value
-            self.root = newroot = oldroot[NEXT]
-            del cache[newroot[KEY]]
+            oldroot[2] = key
+            oldroot[3] = value
+            self.root = newroot = oldroot[1]
+            del cache[newroot[2]]
             sentinel = self.sentinel
-            newroot[KEY] = sentinel
-            newroot[VALUE] = sentinel
+            newroot[2] = sentinel
+            newroot[3] = sentinel
 
     def __setitem__(self, key, value):
-        PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         with self.lock:
             sentinel = self.sentinel
             link = self.cache.get(key, sentinel)
@@ -105,16 +100,15 @@ class LRUDict(MutableMapping):
                 else:
                     raise RuntimeError("LRUDict size exceeds maximum size")
             else:
-                link[VALUE] = value
+                link[3] = value
                 self._mark_recent_use(link)
 
     def _remove_link(self, link):
-        PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         with self.lock:
-            prev = link[PREV]
-            next = link[NEXT]
-            prev[NEXT] = next
-            next[PREV] = prev
+            prev = link[0]
+            next = link[1]
+            prev[1] = next
+            next[0] = prev
 
     def __delitem__(self, key):
         with self.lock:
@@ -124,18 +118,17 @@ class LRUDict(MutableMapping):
             del cache[key]
 
     def remove_oldest(self):
-        PREV, NEXT, KEY, VALUE = 0, 1, 2, 3
         with self.lock:
             oldroot = self.root
-            newroot = oldroot[NEXT]
-            last = oldroot[PREV]
-            newroot[PREV] = last
-            last[NEXT] = newroot
+            newroot = oldroot[1]
+            last = oldroot[0]
+            newroot[0] = last
+            last[1] = newroot
             self.root = newroot
-            del self.cache[newroot[KEY]]
+            del self.cache[newroot[2]]
             sentinel = self.sentinel
-            newroot[KEY] = sentinel
-            newroot[VALUE] = sentinel
+            newroot[2] = sentinel
+            newroot[3] = sentinel
 
     def resize(self, newsize):
         _len = len
